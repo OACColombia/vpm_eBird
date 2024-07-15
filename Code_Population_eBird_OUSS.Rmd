@@ -1689,7 +1689,7 @@ Iterating this process, for instance for years position 10 to 24:
 #A vector of time steps to evaluate
 last.tt <- c(10:24)
 
-N.critical = (3/4)*mean(exp(yt2))
+N.critical = (1/4)*mean(exp(yt2))
 ntraj = 100
 thres.times <- 0:5
 len.sim <- max(thres.times)+1
@@ -1805,65 +1805,40 @@ for(t in last.tt){
 par(mfrow=c(1,1))
 
 plot(tt2[-1],probability.ext[-1], type = "b", ylim = c(0,1), ylab = "Probability of extinction risk", xlab = "Time (year)")
-
 ```
 
-
-# 3. Prepare the data from eBird and time-series vectors
-
-eBird is cool, **bhla bhla bhla...**
+How different is this "gap" population from the complete dataset?
 
 ```{r}
-snailKite <- read_rds("Abundance_data_Outcome/SnailKiteCountsDay.rds")
+#A vector of time steps to evaluate
+last.tt <- c(10:29)
 
-#reduce to the maximum number in each month
-
-snailkitesmonth <- snailKite |>
-  mutate(year.t = year(observation_date),
-         month.t = month(observation_date)) |>
-  group_by(year.t, month.t) |>
-  summarise(Observed.y = max(Observed.y)) |>
-  ungroup() |>
-  mutate(Time.t = row_number())
-
-plot(snailkitesmonth$Time.t,
-     snailkitesmonth$Observed.y,
-     type = "b",
-     xlab = "Time (accumulated months)",
-     ylab = "Population abundance observed")
-```
-
-```{r}
-#each six months since the last assessment in Poli et al
-ttt <- snailkitesmonth$Time.t
-ytt <- log(snailkitesmonth$Observed.y)
-
-last.tt <- seq(10,nrow(snailkitesmonth),6)
-
-N.critical = (3/4)*mean(exp(ytt))
+N.critical = (1/4)*mean(exp(yt1))
 ntraj = 100
-thres.times <- 0:12 #1 years
+thres.times <- 0:5
 len.sim <- max(thres.times)+1
 
-#array to store p.below critical point
-probability.ext <- rep(0,length(last.tt))
+#array to store p.below critical point (last point < N.critical/ntraj)
+  probability.ext1 <- rep(0,length(last.tt))
+#array to store p.below critical point - area under the curve
+  probability.ext2 <- rep(0,length(last.tt))
 
-par(mfrow=c(3,3),mar=c(3,3,3,1),  oma=c(2,2,2,1), mgp=c(2,0.5,0))
+par(mfrow=c(4,5),mar=c(3,3,3,1),  oma=c(2,2,2,1), mgp=c(2,0.5,0))
 
 for(t in last.tt){
-  plot(ttt[1:t], 
-     exp(ytt[1:t]), 
+  plot(tt1[1:t], 
+     exp(yt1[1:t]), 
      type="b", lwd=2, cex.lab=1.25, 
-     xlim=c(min(ttt),max(ttt)),
+     xlim=c(min(tt1),max(tt1)),
      ylim=c(0,30), 
-     ylab="Population abundance", xlab="Time (months)")
+     ylab="Population abundance", xlab="Time")
   
   last.points <- rep(0,ntraj)
 
-  OUSS.partial <- ouss_remle(yt = ytt[1:t],
-                           tt = ttt[1:t],
-                           fguess = guess_ouss(yt = ytt[1:t],
-                                               tt = ttt[1:t]))
+  OUSS.partial <- ouss_remle(yt = yt1[1:t],
+                           tt = tt1[1:t],
+                           fguess = guess_ouss(yt = yt1[1:t],
+                                               tt = tt1[1:t]))
 
   model <- if(OUSS.partial$remles[2] < 0.025){
     "EGSS"
@@ -1879,82 +1854,203 @@ for(t in last.tt){
                       tt = thres.times,
                       parms = OUSS.partial$remles)
       
-      Pop.sim <- exp(c(ytt[t], sim.mat[-1]))
+      Pop.sim <- exp(c(yt1[t], sim.mat[-1]))
   
         if(Pop.sim[len.sim]>=N.critical){
         
-          lines(ttt[t]+thres.times, Pop.sim, col="lightgrey", lty = "solid")
+          lines(tt1[t]+thres.times, Pop.sim, col="lightgrey", lty = "solid")
         }else{
-          lines(ttt[t]+thres.times, Pop.sim, col="red", lty = "solid")}
+          lines(tt1[t]+thres.times, Pop.sim, col="red", lty = "solid")}
       
       last.points[j] <- Pop.sim[len.sim]
       }
       
       abline(h=N.critical, lty=2, lwd=1)	
       
-      P.ext <- length(which(round(last.points,2) <= N.critical))/ntraj
+      probability.ext1[t] <- length(which(round(last.points,2) <= N.critical))/ntraj
       
       kde.sims <- kde1d(x=last.points)
-      prob.ext <- pkde1d(q=N.critical, obj=kde.sims)
+      probability.ext2[t] <- pkde1d(q=N.critical, obj=kde.sims)
       
-      probability.ext[t] <- mean(P.ext,prob.ext)
+      probability.ext[t] <- mean(c(probability.ext1[t], probability.ext2[t]))
       
-      lines(x = (kde.sims$values*10 + tt2[t] + 12),
+      lines(x = (kde.sims$values*10 + tt1[t] + 5),
             y = kde.sims$grid_points,
             col="darkgray", lwd=2, lty=1)
       
-      lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*10 + ttt[t] + 12),
+      lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*10 + tt2[t] + 5),
             y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
             col="red", lwd=2, lty=1)
       
-      title(main=paste0("OUSS - P(ext) = ", signif(probability.ext[t], digits=2)), cex=1.5)}
+      title(main=paste0(tt1[t], "-", model, "- P(ext risk) = ", signif(probability.ext[t], digits=2)), cex=1.5)}
   
   else{for(j in 1:ntraj){
     
-    EGSS.partial <- egss_mle(yt = ytt[1:t],
-                           tt = ttt[1:t],
-                           fguess_egss = guess_egss(yt = ytt[1:t],
-                                               tt = ttt[1:t]))
+    EGSS.partial <- egss_mle(yt = yt1[1:t],
+                           tt = tt1[1:t],
+                           fguess_egss = guess_egss(yt = yt1[1:t],
+                                               tt = tt1[1:t]))
     
     sim.mat <- egss_sim(1,
                       tt = thres.times,
                       parms = EGSS.partial$mles)
-    Pop.sim <- exp(c(ytt[t], sim.mat[-1]))
+    Pop.sim <- exp(c(yt1[t], sim.mat[-1]))
   
       if(Pop.sim[len.sim]>=N.critical){
         
-        lines(ttt[t]+thres.times, Pop.sim, col="lightgrey", lty = "solid")
+        lines(tt1[t]+thres.times, Pop.sim, col="lightgrey", lty = "solid")
       }else{
-          lines(ttt[t]+thres.times, Pop.sim, col="red", lty = "solid")}
+          lines(tt1[t]+thres.times, Pop.sim, col="red", lty = "solid")}
       
       last.points[j] <- Pop.sim[len.sim]
       }
       
       abline(h=N.critical, lty=2, lwd=1)	
       
-      P.ext <- length(which(round(last.points,2) <= N.critical))/ntraj
+      probability.ext1[t] <- length(which(round(last.points,2) <= N.critical))/ntraj
       
       kde.sims <- kde1d(x=last.points)
-      prob.ext <- pkde1d(q=N.critical, obj=kde.sims)
+      probability.ext2[t] <- pkde1d(q=N.critical, obj=kde.sims)
       
-      probability.ext[t] <- mean(P.ext,prob.ext)
+      probability.ext[t] <- mean(c(probability.ext1[t], probability.ext2[t]))
       
-      lines(x = (kde.sims$values*10 + ttt[t] + 12),
+      lines(x = (kde.sims$values*10 + tt1[t] + 5),
             y = kde.sims$grid_points,
             col="darkgray", lwd=2, lty=1)
       
-      lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*10 + tt2[t] + 12),
+      lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*10 + tt1[t] + 5),
             y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
             col="red", lwd=2, lty=1)
       
-      title(main=paste0("EGSS - P(ext) = ", signif(probability.ext[t], digits=2)), cex=1.5)}
+      title(main=paste0(tt1[t], "-", model, "- P(ext risk) = ", signif(probability.ext[t], digits=2)), cex=1.5)}
 
 }
 
 par(mfrow=c(1,1))
 
-plot(ttt,probability.ext, type = "b", ylim = c(0,1), ylab = "Probability of extinction", xlab = "Time (year)")
+plot(tt1,probability.ext, type = "b", ylim = c(0,1), ylab = "Probability of extinction risk", xlab = "Time (year)")
 ```
+
+
+
+Thus, we can have a function to conduct this PVM (or vpm), requiring:
+1. A vector of log-abundance observations in the time-series ($y_t$)
+2. A vector of observations times ($t_t$)
+3. The number of trajectories (e.g., 100, 1000) to simulate (`ntraj`)
+4. Critical value of the population (quasiextinction criteria; e.g., $\frac{1}{4}\bar{y}$)
+5. Population long-term simulations (for how long the population will be simulated?)
+
+```{r}
+vpm <- function(yt, tt, ntraj, N.critical, plt){
+  # A vector of time steps to evaluate
+    last.tt <- c(round(1/4*length(tt),0):length(tt))
+  # Number of trajectories to simulate
+    ntraj = ntraj
+  # threshold time steps and length
+    thres.times <- 0:plt
+    len.sim <- max(thres.times)+1
+  # Confirming decimals in N.critical
+    N.critical = round(N.critical,3)
+  #array to store p.below critical point (last point < N.critical/ntraj)
+    probability.ext1 <- rep(0,length(last.tt))
+  #array to store p.below critical point - area under the curve
+    probability.ext2 <- rep(0,length(last.tt))
+  #array to store model in each time
+    Model <- rep(0,length(last.tt))
+
+  for(t in last.tt){
+    #array to store last point of each trajectory
+      last.points <- rep(0,ntraj)
+    #Compute Restricted Maximum Likelihood Estimaton for OUSS
+      OUSS.partial <- ouss_remle(yt = yt[1:t],
+                             tt = tt[1:t],
+                             fguess = guess_ouss(yt = yt[1:t],
+                                                 tt = tt[1:t]))
+    #Select the model to simulate based on density dependence parameter
+      model <- if(OUSS.partial$remles[2] < 0.025){"EGSS"}else{"OUSS"}
+      
+      Model[t] <- model;
+
+    if(model == "OUSS"){
+      for(j in 1:ntraj){
+      #simulate the next PLT values (5, 10, 20,...)
+        sim.mat <- ouss_sim(1,
+                          tt = thres.times,
+                          parms = OUSS.partial$remles)
+
+        Pop.sim <- exp(c(yt[t], sim.mat[-1]))
+        last.points[j] <- Pop.sim[len.sim]
+      }
+
+      probability.extinction1 <- length(which(round(last.points,3) <= N.critical))/ntraj
+
+      probability.ext1[t] <- if(probability.extinction1 <= 0.001){"≤0.001"}else{probability.extinction1}
+
+      kde.sims <- kde1d(x=last.points)
+      probability.extinction2 <- round(pkde1d(q=N.critical, obj=kde.sims),3)
+      
+      probability.ext2[t] <- if(probability.extinction2 <= 0.001){"≤0.001"}else{probability.extinction2}
+      }
+    else{
+      for(j in 1:ntraj){
+      #Compute Maximum Likelihood Estimators for EGSS
+        EGSS.partial <- egss_mle(yt = yt[1:t],
+                             tt = tt[1:t],
+                             fguess_egss = guess_egss(yt = yt[1:t],
+                                                      tt = tt[1:t]))
+      #simulate the next PLT values (5, 10, 20,...)
+        sim.mat <- egss_sim(1,
+                        tt = thres.times,
+                        parms = EGSS.partial$mles)
+        Pop.sim <- exp(c(yt[t], sim.mat[-1]))
+        last.points[j] <- Pop.sim[len.sim]
+      }
+
+      probability.extinction1 <- length(which(round(last.points,3) <= N.critical))/ntraj
+
+      probability.ext1[t] <- if(probability.extinction1 <= 0.001){"≤0.001"}else{probability.extinction1}
+
+      kde.sims <- kde1d(x=last.points)
+      probability.extinction2 <- round(pkde1d(q=N.critical, obj=kde.sims),3)
+      
+      probability.ext2[t] <- if(probability.extinction2 <= 0.001){"≤0.001"}else{probability.extinction2}
+    }
+      }
+  
+    out <- tibble(Time = tt,
+                  Model = Model,
+                  Prob.ext.Risk.1 = probability.ext1,
+                  Prob.ext.Risk.2 = probability.ext2,
+                  Observed = exp(yt))
+    return(out)
+    }
+```
+
+
+```{r}
+Setoruti.vpm <- vpm(yt = yt1, tt = tt1, ntraj = 100, N.critical = 3/4*mean(exp(yt1)), plt = 10);
+
+ggplot(Setoruti.vpm, aes(x = Time))+
+  geom_line(aes(y = Prob.ext.Risk.1), color = "darkred", alpha = 0.5)+
+  geom_line(aes(y = Prob.ext.Risk.2), color = "darkgreen", alpha = 0.5)+
+  geom_point(aes(y = Prob.ext.Risk.1, shape = Model), color = "darkred", alpha = 0.5)+
+  geom_point(aes(y = Prob.ext.Risk.2, shape = Model), color = "darkgreen", alpha = 0.5)+
+  labs(x = "Time (years)",
+       y = "Probability of extinction risk")+
+  ylim(0:1)+
+  annotate("text", x = c(1985, 1985), y = c(0.42,0.24), 
+           label = c("Proportion simulations","density lognormal"),
+           color = c("darkred","darkgreen"))+
+  theme_classic()+
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.8, 0.7))
+```
+
+# 3. Prepare the data from eBird and time-series vectors
+
+eBird is cool, **bhla bhla bhla...**
+
+
 
 We can simplify the eBird data selecting only columns of our interest (it will reduce the size of the dataset)
 
@@ -1975,8 +2071,8 @@ To conduct some filters, we will generate temporal files in our computer. Here w
 
 ```{r eval=F}
 #generate a temporal file to save the filtering eBird data (f_ebd) and sampling (f_sed)
-f_ebd <- "Abundance_data_Outcome/ebd_Examples.txt" 
-f_sed <- "Abundance_data_Outcome/sed_Examples.txt" 
+f_ebd <- "data_tmp/ebd_Examples.txt" 
+f_sed <- "data_tmp/sed_Examples.txt" 
 ```
 
 The construction of time-series of the estimation of individuals from eBird will assume spatiotemporal subsampling for the high counts (assuming to be the minimum number of individuals) per day in spatial sampling units of $100 \text{ km}^2$.
@@ -1995,7 +2091,7 @@ Now, we can download the data from [eBird](https://ebird.org/data/download). Ine
 Filtering for protocol, distance, duration, only complete lists
 
 ```{r eval=F}
-ebd_filt <- auk_ebd("Abundance_data/ebd_US-FL_snakit_smp_relMay-2024.txt") %>%
+ebd_filt <- auk_ebd("data_raw/ebd_US-FL_snakit_smp_relMay-2024.txt") %>%
   auk_protocol(c("Traveling", "Stationary")) %>%
   auk_distance(distance = c(0,5)) %>%
   auk_duration(duration = c(0,300))%>%
@@ -2041,6 +2137,13 @@ SnailKite <- eff %>%
          n_lists = n())
 ```
 
+And we can save this as an outcome for backup.
+
+```{r eval=F}
+saveRDS(SnailKite, "data_tmp/SnailKiteCellsID_filtered.rds")
+```
+
+
 This file will serve to generate a map figure with the sampling effort after filtering the eBird data following best practices (see Johnston *et al.*, *Div & Dist* 2021).
 
 Now is time to generate our time-series. First we check the number of sampling events in eBird (checklists) in each spatial sampling unit (cell). For this species, we focused on the sampling unit with higher number of checklists, which correspond to the Payne's Prairie State Park wetland system in Alachua County. For this locality, we filter the data since its establishment after 2017, and organize a consecutive vector of the `Time.t`, that represent each day (e.g., the first day of detection is named $1$).
@@ -2062,13 +2165,16 @@ SnailKiteCountsDay <- SnailKite |>
 And we can save this as an outcome for backup.
 
 ```{r eval=F}
-saveRDS(SnailKiteCountsDay, "Abundance_data_Outcome/SnailKiteHighCountsDay.rds")
+saveRDS(SnailKiteCountsDay, "data_tmp/SnailKiteHighCountsDay.rds")
 ```
 
-This example is special, because it was established in 2018 in this locality, thus we require a nonstationary estimation (Dennis & Ponciano, *Ecology* 2014). The maximum likelihood estimation for the nonstationary case uses the multivariate normal log-likelihood: $$
-\log{L}(\mu, \theta, \beta^2, \tau^2) = -\frac{q+1}{2}\log(2\pi)-\frac{1}{2}\log(|\mathbf{V}|)-\frac{1}{2}(\mathbf{y}-\mathbf{m})^T\mathbf{V}^{-1}(\mathbf{y}-\mathbf{m})
-$$ Where $\mu$, $\theta$, $\beta^2$, and $\tau^2$ correspond to the unknown parameters for the OUSS model (see main text and Dennis & Ponciano, *Ecology* 2014), $q+1$ the length of the vector of time series of log observed abundances $\mathbf{y}=y_{0}, y_{1}, y_{2}, ..., y_{q}$, the mean vector $\mathbf{m}$ with all $q+1$ elements given the nonstationary distribution $E[Y(t_{i})]=\mu-(\mu-x_{0})\exp(-\theta t_{i})$, and $\mathbf{V}$ is the variance matrix from $V[Y(t_{i})]=\frac{\beta^2}{2\theta}(1-\exp(-2\theta t_{i}))+\tau^2$. Thus, this log-likelihood must be numerically maximized for the five unknown parameters: the four parameters already mentioned ($\mu$, $\theta$, $\beta^2$, $\tau^2$) and $x_{0}$ (the initial population).
+Let see if we can fit a REMLE OUSS for this population
 
-```{r eval=F}
-
+```{r}
+snailkites.ouss.remle <- ouss_calc(yt = log(SnailKiteCountsDay$Observed.y),
+                           tt = SnailKiteCountsDay$Time.t,
+                           pmethod = "REML",
+                           nboot = 10,
+                           plot.pred = F,
+                           plot.bootdists = T)
 ```
