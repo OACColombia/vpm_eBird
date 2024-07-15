@@ -1,0 +1,2074 @@
+---
+title: "Risk-based viable population monitoring from community science data"
+author: "Authors...(removed for peer review in Methods in Ecology and Evolution)"
+date: "`r format(Sys.time(), '%B %Y')`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# 1. Read me (begin here)
+
+This file is the code used for analysis of a paper to be submitted to ***Methods in Ecology and Evolution*** as a *Practical tool*. Thus, we hope this program is applied for different users in an intuitive and "practical" way. We focused on community science data of birds from the [eBird](https://ebird.org/home) platform, with an example that have long-term monitoring efforts to understand population dynamics, the Snail Kite in Florida [*Rostrhamus sociabilis*](https://birdsoftheworld.org/bow/species/snakit/cur/introduction) (see *5. Prepare the data from eBird and time-series vectors*). With this example, first, we adjust the data to run an Ornstein-Uhlenbeck State-Space models (OUSS), a continuous version of the discrete-time equal sampling Gompertz State-Space model, including Maximum Likelihood Estimation (MLE) and Restricted Maximum Likelihood Estimation (later recommended). The statistical properties for our proceedings are based on Dennis *et al.* (**Ecol Monogr**, 1991; hereafter ***D_91EM***), Dennis *et al.* (**Ecol Monogr**, 2006; hereafter ***D_06EM***), Dennis & Ponciano (**Ecology**, 2014; ***DP_E***), Humbert *et al.* (**Oikos**, 2009; ***H_O***), and reference within them. We adjusted the functions and code published as supplementary information in ***H_O*** and ***DP_E*** (`rouss`). Finally, we applied a risk-based viable population monitoring framework to this community science data (see Staples *et al.* **Cons Biol**, 2005).
+
+# 2. Packages and data example
+
+The code will require some packages. If you do not have these packages, please install them before proceeding. We encourage to study each package to be familiar with their functions.
+
+```{r message=FALSE}
+#R functions and datasets to support "Modern Applied Statistics with S", a book from W.N. Venables and B.D. Ripley
+  library(MASS);
+
+#Lognormal distribution
+  library(kde1d)
+
+#To conduct eBird data filtering and manipulation (see Strimas et al. 2018 and 2023)
+  library(auk); 
+#To data management and visualization - sevent packages in one
+  library(tidyverse)
+#To conduct Spatiotemporal Subsampling
+  library(dggridR)
+#load maps
+  library(maps); 
+#composite figure
+  library(gridExtra); 
+```
+
+
+## 2.1. Data example (real and modified)
+
+We will use same data as in ***D_EM*** and ***H_O*** (American Redstart from North American Breeding Bird Survey, record # 02014 3328 08636, 1966-95), just to test the functions. Given that the realized values of log-observation (in lower case) are $y_t$ for each $t$ (year) between 1966 and 1995 ($t_t$), we have these two vectors representing our data. In addition, we remove intentionally some observations to simulate gaps in data for stationary (`yt2` and `tt2`).
+
+```{r}
+#Discrete equal sampling - stationary
+yt1 = log(c(18, 10, 9, 14, 17, 14, 
+            5, 10, 
+            9, 5, 11, 11, 4, 5, 4, 8, 2, 3, 9, 2, 
+            4, 7, 4, 1, 
+            2, 4, 11, 11, 9, 6)) #note, there are not zeros
+tt1 = c(1966:1995)
+
+#unequal sampling (missing values) - stationary
+yt2 = log(c(18, 10, 9, 14, 17, 14,
+            #5, 10, 
+            9, 5, 11, 11, 4, 5, 4, 8, 2, 3, 9, 2, 
+            #4, 7, 4, 1, 
+            2, 4, 11, 11, 9, 6)) #note, there are not zeros
+tt2 = c(1966:1971, 
+        1974:1985,
+        1990:1995)
+```
+
+# 3. Functions
+
+The following functions should be available to the analysis of time-series of observation count data from eBird. Although we deploy some of their statistical properties and equations to justify their use, most information is also available in ***D_91EM***, ***D_06EM***, ***H_O***, and ***DP_E***.
+
+## 3.1. Convert time observation to hours since midgnight in eBird data
+
+```{r}
+time_to_decimal <- function(x) {
+  x <- hms(x, quiet = TRUE)
+  hour(x) + minute(x) / 60 + second(x) / 3600
+}
+```
+
+## 3.2. EGSS-MLE
+
+The first example in any population ecology class is the exponential growth population model. This model assumes density independence and it could be of an stochastic form (see ***D_06EM*** and ***H_O***). The model is defined as the stochastic differential equation (from the Itô log-transformation):
+
+$$
+\begin{array}{ccc}
+dX(t) &=& (r-\frac{1}{2} \beta^2)dt+\beta dW(t) \\
+&=& \theta\ dt+\beta dW(t)
+\end{array}
+$$
+where $X(t) = \ln{N(t)}$, the log population abundance at time $t$, $\theta = r-\frac{1}{2}\beta^2$ is a constant of population growth rate ($\ln{\lambda}-(\frac{\sigma^2}{2})$ as in the ***Eq13*** in ***D_91EM***; named $\mu = \ln{\lambda}$ in ***H_O***), and $dW(t)$ is a random perturbation representing the environmental stochasticity or process noise (the Itô transformation of $E_t$ from GSS in ***D_06EM***), with mean $0$ and variance $\sigma^2dt$. Estimated or observed abundance $Y(t_i)$ of the logarithmic population abundance $X(t_i)$ has an observation error $F_i$ with mean $0$ and variance $\tau^2$:
+
+$$
+\begin{array}{ccc}
+Y(t_i) &=& X(t_i) + F_i \\
+F_i &\sim& \text{Normal}(0,\tau^2)
+\end{array}
+$$
+
+
+EGSS have a multivariate normal log-likelihood function given by (***EqA17*** in ***H_O***):
+
+$$
+\ln{L}(\theta, \sigma^2, \tau^2, x_0) = -\frac{(q+1)}{2}\ln(2\pi)-\frac{1}{2}\ln(|\mathbf{V}|)-\frac{1}{2}(\mathbf{y}-\mathbf{m})'\mathbf{V}^{-1}(\mathbf{y}-\mathbf{m})
+$$
+where $q+1$ represent the length of the time-series, $\mathbf{V}$ is the variance-covariance matrix, $\mathbf{y}$ is the vector of log-abundance observations ($y_0$, $y_1$, ..., $y_q$), and $\mathbf{m}$ is the vector of means of change from $x_0$ to $x_0+\theta t_1$, to $x_0+\theta t_2$, ... $x_0+\theta t_q$.
+
+
+The four unknown parameters are: $\theta$ (trend parameter, or expected change), $\sigma^2$ (variation of the process noise), $\tau^2$ (variation of the observation noise), and $x_0$ (the unknown initial population).
+ 
+For the numerical optimization of this multivariate normal log-likelihood, we will need three arguments:
+
+1.  A vector of time-series log-observed abundances `yt` ($\mathbf{y}$)
+2.  A vector of observation times `tt`
+3.  A vector of initial parameters `fguess_egss` (a first guess for the **four** parameters in EGSS), that could be roughly computing by provide the vector of log-abundance observations `yt` ($\mathbf{y}$) and the vector of observation times `tt` with function `guess_egss()`
+
+```{r}
+guess_egss <- function(yt,tt){
+	
+  # Time-vector starting in 0.
+    t.i       <- tt-tt[1];   
+  # Number of time-series transitions
+    q         <- length(yt)-1;   
+  # length of time-series
+    qp1       <- q+1;
+  # time intervals (named as S.t in H_O and sometimes in DP_E)
+    t.s       <- t.i[2:qp1]-t.i[1:q];  
+    
+  #The Exponential Growth Observation Error (EGOE in H_O) initial values  
+  
+  # mean of the observations as assumed to arise from stationary distribution
+    Ybar      <- mean(yt);
+	# mean of the time series
+    Tbar      <- mean(t.i)
+	# trend parameter for EGOE (theta = ln(lambda) in H_O)
+    theta.egoe    <- sum((t.i-Tbar)*(yt-Ybar))/sum((t.i-Tbar)*(t.i-Tbar));
+	# Initial population  of EGOE
+    x0.egoe   <- Ybar-theta.egoe*Tbar
+	# sigma square for EGOE is 0 (assume no ecological process variation)
+    ssq.egoe  <- 0
+	# estimate of initial population observed under EGOE
+    Yhat.egoe <- x0.egoe+theta.egoe*t.i;
+	# initial value for tau^2
+    tsq.egoe  <- sum((yt-Yhat.egoe)*(yt-Yhat.egoe))/(q-1);
+	 
+  #The Exponential Growth Process Noise (EGPN in H_O) initial values  
+	# Square root of time intervals (time trend?)
+    Ttr       <- sqrt(t.s);
+	# Observed trend?   
+    Ytr       <- (yt[2:qp1]- yt[1:q])/Ttr;
+	# trend parameter for EGPN (mu = ln(lambda) in H_O) 
+    theta.egpn    <- sum(Ttr*Ytr)/sum(Ttr*Ttr);
+	# Trend of observed estimated  
+    Ytrhat    <- theta.egpn*Ttr;
+	# initial value for sigma^2  
+    ssq.egpn  <- sum((Ytr-Ytrhat)*(Ytr-Ytrhat))/(q-1);
+	# tau square for EGPN is 0 (assume no observation variation)
+    tsq.egpn  <- 0;
+	# Initial population  of EGPN is the first observation
+    x0.egpn   <- yt[1];
+
+	#four parameters needed in EGSS and OUSS.NoSt 	  
+    theta0    <- (theta.egoe+theta.egpn)/2;
+    ssq0      <- ssq.egpn/2;
+    tsq0      <- tsq.egoe/2;
+    x0.out    <- (x0.egoe+x0.egpn)/2;
+	
+  return(c(theta0, ssq0, tsq0, x0.out))
+  }
+```
+
+The numerical optimization for the MLEs in `R` is:
+
+```{r}
+negloglike_egss_mle <- function(yt,tt,fguess_egss){
+	
+    theta         <- fguess_egss[1];
+	  sigmasq       <- exp(fguess_egss[2]);
+	  tausq         <- exp(fguess_egss[3]);
+	  xo            <- fguess_egss[4];
+	  q             <- length(yt) - 1;
+	  qp1           <- q+1;
+	  yt            <- matrix(yt,nrow=qp1,ncol=1); # makes data a matrix object
+	  vx            <- matrix(0,qp1,qp1);
+	for(i in 1:q){ 
+		vx[((i+1):qp1),((i+1):qp1)] <- matrix(1,(qp1-i),(qp1-i))*tt[(i+1)];
+	}
+	  Sigma.mat     <- sigmasq*vx;
+	  Itausq        <- matrix(rep(0,(qp1*qp1)), nrow=qp1, ncol=qp1);
+	  diag(Itausq)  <- rep(tausq,qp1);
+	  V             <- Sigma.mat + Itausq;
+	  theta.vec     <- matrix((xo+theta*tt), nrow=qp1,ncol=1);
+	
+	return((qp1/2)*log(2*pi) + 0.5*log(det(V)) + 0.5*(t(yt-theta.vec)%*%ginv(V)%*%(yt-theta.vec)))	
+}
+```
+
+Now we can compute the MLE of the EGSS model with the function `egss_mle()`:
+
+```{r}
+egss_mle <- function(yt,tt,fguess_egss){
+	
+  # Time-vector starting in 0.
+    t.i         <- tt-tt[1];
+  # Number of time-series transitions
+    q           <- length(t.i)-1;
+  # length of time-series
+    qp1         <- q+1;
+  # initial guesses (r as estimated, sigmasq and tausq at log scale (?), x0 as estimated)
+    guess.optim <- c(fguess_egss[1], 
+                     log(fguess_egss[2:3]), 
+                     fguess_egss[4]) 
+  # numerical optimization
+    optim.out   <- optim(par=guess.optim, 
+	                   fn=negloglike_egss_mle, 
+	                   method="Nelder-Mead", 
+	                   yt=yt, 
+	                   tt=t.i)
+  #Extract MLEs and AIC
+    mles        <- c(optim.out$par[1], 
+                     exp(optim.out$par[2:3]), 
+                     optim.out$par[4])
+    lnL.hat     <- - optim.out$value[1]
+    AIC         <- -2*lnL.hat + 2*4 #where 4 = length(MLEs)... 
+	
+    out         <- list(mles=mles, 
+                        lnL.hat = lnL.hat, 
+                        AIC=AIC)
+	return(out)
+}
+```
+
+## 3.3. OUSS-MLE
+
+The deterministic discrete-time GSS model is defined as 
+
+$$
+N_t = N_{t-1} \exp(a+b \ln{N_{t-1}})
+$$
+where $N_t$ is the population abundance at time $t$, while $a$ and $b$ are constants representing the population growth rate and the density dependence, respectively. The stochastic model include an environmental component of noise:
+
+$$
+\begin{array}{ccc}
+N_t = N_{t-1} \exp(a+b \ln{N_{t-1}}+E_t) \\
+E_t \sim \text{Normal}(0,\sigma^2) \\
+\end{array}
+$$
+where $\sigma^2$ is the variation of the process noise (stochasticity). This state-space model link the  ecological process with the observation process by log-transforming the abundance ($X_t = \ln{N_t}$), defining
+
+$$
+\begin{array}{ccc}
+X_t = a + c X_{t-1}+E_t \\
+
+Y_t = X_t + F_t \\
+F_t \sim \text{Normal}(0,\tau^2)
+\end{array}
+$$
+where $c = b+1$ (strength of density dependence) and $\tau^2$ is the variation of the observation process $F_t$. Note that if $b = 0$, $c=1$ and the model mutates to a special case of the GSS, the density independence model (***D_EM***). 
+
+The log-transformation of the GSS model allow to estimate infinitesimal mean and variance in a continuous form. The deterministic skeleton is defined by the ordinary differential equation:
+
+$$
+\frac{dn(t)}{dt}=\theta n(t)[\ln \kappa - \ln n(t)]
+$$
+where $n(t)$ is the abundance of the growing entity at time $t$, while $\theta$ is a constant measure of the speed of equilibration (a trend parameter), and $\kappa$ is a constant of abundance equilibrium (carrying capacity). The solution trajectory of the previous ODE is:
+
+$$
+n(t) = \kappa \exp[e^{-\theta t} \ln{n_0/\kappa}]
+$$
+
+The stochastic version of this diffusion process from the GSS model is defined as the stochastic differential equation:
+
+$$
+dN(t) = \theta N(t)[\ln{\kappa}-\ln{N(t)}]dt+\beta N(t)dW(t)
+$$
+where $dW(t)$ is a random perturbation representing the environmental stochasticity or process noise, with mean $0$ and variance $dt$, with intensity of noise scaled by the term $\beta N(t)$, with $\beta >0$.
+
+Under this diffusion process, the infinitesimal mean function is given by $m(n) = \theta n(\ln{\kappa}-\ln{n})$, and infinitesimal variance function $v(n) = \beta^2 n^2$. As $X(t) = \ln{N_t}$, the infinitesimal mean ($m_X$) and variance ($v_X$) are given by the Itô log-transformation as (***Eq4*** & ***Eq5*** in ***DP_E***):
+
+$$
+\begin{array}{ccc}
+m_X(x) &=& \theta(\mu - x) \\
+v_X(x) &=& \beta^2 \\
+\end{array}
+$$
+where $\mu = \ln{\kappa}-\frac{\beta^2}{2\theta}$.
+
+
+The model is defined as the stochastic differential equation (***Eq6*** in ***DP_E***)
+
+$$
+dX(t) = \theta[\mu-X(t)]dt+\beta dW(t)
+$$
+
+Estimated or observed abundance $Y(t_i)$ of the logarithmic population abundance $X(t_i)$ has an observation error $F_i$ with mean $0$ and variance $\tau^2$:
+
+$$
+\begin{array}{ccc}
+Y(t_i) = X(t_i) + F_i; \\
+F_i \sim \text{Normal}(0,\tau^2)
+\end{array}
+$$
+
+
+The OUSS model have a joint multivariate normal distribution that in its stationary form have four unknown parameters: $\mu$ (in stationary distribution is the expected value of stationary distribution of log-abundance mean; it is different than $\mu_{91}$ in ***D_91EM***, named here the trend parameter $\theta$ in *1.3.2. EGSS*), $\theta$ (rate to approach to stationarity), $\beta^2$ (variability of process noise), and $\tau^2$ (variability of sampling). The relationship of these parameters with the discrete GSS model is given by the transformations:
+
+$$
+\begin{array}{ccc}
+a &=& \mu(1- e^{-\theta}) \\
+c &=& e^{-\theta} \\
+\sigma^2 &=& \frac{(1-e^{-2\theta})\beta^2}{2\theta} \\
+\tau^2 &=& \tau^2 \\
+&...&\\
+\mu &=& \frac{a}{1-c} \\
+\theta &=& -\ln{c} \\
+\beta^2 &=& -\frac{2\sigma^2 \ln{c}}{1-c^2} \\
+\tau^2 &=& \tau^2 \\
+\end{array}
+$$
+
+We might assume that the population have become stationary at the moment of first sampling, fluctuating around some equilibrium ($\mu$). Thus, the initial log-abundance of the population $X(0)$ is part of the stationary normal distribution (log-normal distribution of the abundance, recall $X(0)=\ln(N(0))$), and its multivariate normal log-likelihood for the stationary OUSS model is given by (see ***Eq. 19*** ***DP_E***).
+
+$$
+\ln{L}(\mu, \theta, \beta^2, \tau^2) = -\frac{(q+1)}{2}\ln(2\pi)-\frac{1}{2}\ln(|\mathbf{V}|)-\frac{1}{2}(\mathbf{y}-\mathbf{m})'\mathbf{V}^{-1}(\mathbf{y}-\mathbf{m})
+$$
+
+where $q$ is the number of time-series transitions (thus, $q+1$ reflect the length of the time-series, with the initial population estimation $y_0$ as a realized value of the random variable $Y(0)$), $\mathbf{V}$ is the variance-covariance matrix (with diagonal computed from $V[Y(t_i)] = \tau^2+\frac{\beta^2}{2\theta}$; ***Eq. 17*** in ***DP_E***), $\mathbf{y}$ is the data values ($y_0$, $y_1$, $y_2$, ..., $y_q$), and $\mathbf{m}$ is the vector of same $\mu$ in all $q+1$ times ($E[Y(t_i)] = \mu]$; ***Eq. 16*** in ***DP_E***).
+
+This function requires three arguments for the numerical optimization in `R`:
+
+1.  A vector of time-series of log-observed abundances `yt` ($\mathbf{y}$)
+2.  A vector of observation times `tt`
+3.  A vector of parameters `fguess` (a first guess for the **four** parameters), that could be roughly computing by provide the vector of log-abundance observations `yt` ($\mathbf{y}$) and the vector of observation times `tt` with the function `guess_ouss()`
+
+```{r}
+guess_ouss <- function(yt,tt){
+	
+  # Time-vector starting in 0.
+    t.i     <- tt-tt[1];   
+	# Number of time-series transitions
+    q       <- length(yt)-1;   
+  # length of time-series
+    qp1     <- q+1;
+  # time intervals
+    t.s     <- t.i[2:qp1]-t.i[1:q];  
+  # mean of the observations as assumed to arise from stationary distribution
+    Ybar    <- mean(yt);
+  # Variance of the observations
+    Yvar    <- sum((yt-Ybar)*(yt-Ybar))/q;
+  # Initial mu estimate (at stationary distribution)
+    mu1     <- Ybar;
+
+  # Kludge an initial value for theta based on mean of Y(t+s) given Y(t).
+    th1     <- -mean(log(abs((yt[2:qp1]-mu1)/(yt[1:q]-mu1)))/t.s);            
+  # Moment estimate using stationary distribution
+    bsq1    <- 2*th1*Yvar/(1+2*th1);       
+  # Observation error variance, assumed as first guess as betasq=tausq.
+    tsq1    <- bsq1;                         
+
+  # What to do if initial guesses is three 0's (or NAs)? Assume arbitrary values
+    three0s <- sum(c(th1,bsq1,tsq1))
+	  
+    if(three0s==0|is.na(three0s)){
+      th1   <- 0.5;
+	    bsq1  <- 0.09; 
+	    tsq1  <- 0.23;}
+
+    out1    <- c(th1,bsq1,tsq1);
+	
+  # What to do if initial guesses are too little? Assume arbitrary values
+    if(sum(out1<1e-7)>=1){
+      out1  <- c(0.5,0.09,0.23)}
+    
+    out     <- c(mu1,out1);
+	
+	return(abs(out))
+}
+```
+
+The numerical optimization for the MLEs in `R` is:
+
+```{r}
+negloglike_ouss_mle <- function(yt,tt,fguess){
+  
+  # log-abundance stationary distribution mean (Eq10 in DP_E)
+    mu        <- fguess[1];   
+  # Constrains parameters theta, beta^2, and tau^2 > 0
+    guess     <- exp(fguess[2:4]); 
+  # speed of equilibration (Eq1 in DP_E)
+    theta     <- guess[1];    
+  # variability of process noise
+    betasq    <- guess[2];    
+  # variability of sampling
+    tausq     <- guess[3];    
+  # number of time-series transitions
+    q         <- length(yt) - 1;
+  # length of time-series
+    qp1       <- q+1;         
+  # Variance (Eq11 in DP_E)
+    Var.inf   <- betasq/(2*theta); 
+  # time intervals (not used here?)
+    t.s       <- tt[2:qp1] - tt[1:q]; 
+  # part of Eq18 in DP_E
+    t.cols    <- matrix(rep(tt,each=qp1), 
+	                     nrow=qp1,
+	                     ncol=qp1, 
+	                     byrow=FALSE);
+  # (part of Eq18 in DP_E)
+    t.rows    <- t(t.cols);    
+  # (part of Eq18 in DP_E) 
+    abs.diffs <- abs(t.rows-t.cols);   
+  # Covariance (Eq18 in DP_E)
+    V         <- Var.inf*exp(-theta*abs.diffs); 
+    diag(V)   <- diag(V) + rep(tausq,qp1);
+  # column vector **m** (from Eq16 in DP_E)
+    mu.vec    <- rep(mu,qp1); 
+	
+  #note the signs change because we want here the negative log-likelihood (Eq19*-1)
+    neglogl   <- (qp1/2)*log(2*pi) + (1/2)*log(det(V)) + (1/2)*(yt-mu.vec)%*%ginv(V)%*%(yt-mu.vec);
+	
+  return(neglogl)
+	}
+```
+
+Now we can compute the MLE of the OUSS model for stationary cases with the function `ouss_mle()`:
+
+```{r}
+ouss_mle <- function(yt,tt,fguess){
+	
+  # Time-vector starting in 0.
+	  t.i         <- tt-tt[1];
+	# Number of time-series transitions
+	  q           <- length(yt)-1;
+	# length of time-series
+	  qp1         <- q+1;
+	# initial guesses (mu as estimated, theta, betasq, and tausq at log scale (?))
+	  guess.optim <- c(fguess[1], log(fguess[2:4])) 
+	# numerical optimization
+	  optim.out   <- optim(par=guess.optim, 
+	                   fn=negloglike_ouss_mle, 
+	                   method="Nelder-Mead", 
+	                   yt=yt, 
+	                   tt=t.i)
+	#Extract MLEs and AIC
+	  mles        <- c(optim.out$par[1], 
+	                   exp(optim.out$par[2:4]))
+	  lnL.hat     <- - optim.out$value[1]
+	  AIC         <- -2*lnL.hat + 2*4 #where 4 = length(MLEs)... 
+	
+	out           <- list(mles=mles, 
+	                      lnL.hat = lnL.hat, 
+	                      AIC=AIC)
+	return(out)
+}
+```
+
+## 3.4. OUSS-REMLE
+
+The restricted maximum likelihood estimation (REMLE) eliminates the parameter of the mean vector ($\mu$) and leave only parameters in the variance-covariance matrix (***DP_E***). This has better statistical properties than MLE for the GSS and EGSS models. The multivariate normal log-likelihood for the REMLE stationary OUSS model is given by (**Eq. 22** in ***DP_E***)
+
+$$
+\ln{L}(\theta, \beta^2, \tau^2) = -\frac{q}{2}\ln(2\pi)-\frac{1}{2}\ln(|\mathbf{\Phi}|)-\frac{1}{2}\mathbf{w}'\mathbf{\Phi}^{-1}\mathbf{w}
+$$
+
+This function requires three arguments for the numerical optimization in `R`:
+
+1.  A vector of time-series of log-observed abundances `yt` ($\mathbf{y}$)
+2.  A vector of observation times `tt`
+3.  A vector of the **three** unknown parameters (`fguess[2:4]` from the `guess_ouss()`)
+
+```{r}
+negloglike_ouss_remle=function(yt,tt,fguess){
+	# Constrains parameters theta, beta^2, and tau^2 > 0
+	
+  # speed of equilibration (Eq1 in DP_E)
+	  theta         <- exp(fguess[2]);    
+	# variability of process noise
+	  betasq        <- exp(fguess[3]);    
+	# variability of sampling
+	  tausq         <- exp(fguess[4]);    
+	# number of time-series transitions
+	  q             <- length(yt) - 1;
+	# length of time-series
+	  qp1           <- q+1;         
+	# Variance (Eq11 in DP_E)
+	  Var.inf       <- betasq/(2*theta); 
+	# time intervals (not used here?)
+	  t.s           <- tt[2:qp1] - tt[1:q]; 
+	# part of Eq18 in DP_E
+	  t.cols        <- matrix(rep(tt,each=qp1),
+	                          nrow=qp1,
+	                          ncol=qp1,
+	                          byrow=FALSE);
+	# (part of Eq18 in DP_E)
+	  t.rows        <- t(t.cols);    
+	# (part of Eq18 in DP_E) 
+	  abs.diffs     <- abs(t.rows-t.cols);  
+  
+	# Covariance of the process (Eq18 in DP_E)
+	  Sigma.mat     <- Var.inf*exp(-theta*abs.diffs);
+  # Create a matrix full of 0s of the length of time series
+	  Itausq        <- matrix(0,qp1,qp1);
+  # Repeat the observation error variance guess in the diagonal of the matrix
+	  diag(Itausq)  <- rep(tausq,qp1);
+  # add Covariance with the matrix
+	  V             <- Sigma.mat+Itausq;
+	# Create the differencing matrix **D**
+    Dmat          <- cbind(-diag(1,q),matrix(0,q,1)) + cbind(matrix(0,q,1),diag(1,q));
+  # Variance-covariance matrix **Phi** (Eq20 DP_E)
+    Phi.mat       <- Dmat%*%V%*%t(Dmat); 
+  # simple differencing of the observations (W_i? )
+    wt            <- yt[2:qp1]-yt[1:q];
+  
+	# note the signs change because we want here the negative log-likelihood (Eq22*-1)
+  neglogl         <- (q/2)*log(2*pi) + (1/2)*log(det(Phi.mat)) + (1/2)*wt%*%ginv(Phi.mat)%*%wt; 
+   
+  # What to do if the `neglogl` is not finite? assign a big number of 50000
+   if(is.infinite(neglogl)==TRUE){
+     return(50000)}else{
+       return(neglogl)}
+}
+```
+
+Now we can compute the REMLE of the OUSS model for stationary cases with the function `ouss_remle()`
+
+```{r}
+ouss_remle <- function(yt, tt, fguess){
+
+  # Time-vector starting in 0.
+	  t.i           <- tt-tt[1];
+	# Number of time-series transitions
+	# length of time-series
+	  q             <- length(yt)-1;
+	  qp1           <- q+1;
+	# time intervals
+    t.s           <- t.i[2:qp1]-t.i[1:q];  
+  # initial guesses (all, but negloglike.OU.remle will use only fguess[2:4])
+    guess.optim   <- c(fguess[1], 
+                       log(fguess[2:4])); 
+	# numerical optimization
+    optim.out     <- optim(par = guess.optim,
+                           fn=negloglike_ouss_remle,
+                           method="Nelder-Mead",
+                           yt=yt,
+                           tt=t.i);
+	# Restricted maximum likelihood estimates (REMLE) and lnL.hat
+    remles        <- exp(optim.out$par);
+	  theta.remle   <- remles[2];
+	  betasq.remle  <- remles[3];
+	  tausq.remle   <- remles[4];
+
+	  lnL.hat       <- -optim.out$value[1];
+	
+	# Variance (Eq11 in DP_E)
+	  Var.inf       <- betasq.remle/(2*theta.remle)
+	# creates an matrix full of 1 dim qp1 x qp1
+	  vx            <- matrix(1,qp1,qp1);
+	# iterate to fill the matrix (couldn't find vx in DP_E!)
+	  for (t.i in 1:q){
+   		vx[(t.i+1):qp1,t.i]=exp(-theta.remle*cumsum(t.s[t.i:q]));
+   		vx[t.i,(t.i+1):qp1]=vx[(t.i+1):qp1,t.i];
+	  }
+	# ?
+	  Sigma.mat     <- vx*Var.inf;
+	# Create a matrix full of 0s of the length of time series
+	  Itausq        <- matrix(0,qp1,qp1);
+	# Repeat the observation error variance remle in the diagonal of the matrix
+		diag(Itausq)  <- rep(tausq.remle,qp1);
+	# Variance-covariance matrix (V.hat) evaluated with remles to estimate mu.hat
+	  V.remle       <- Sigma.mat+Itausq;
+	# column vector matrix of ones
+	  j             <- matrix(1,qp1,1);
+	# Inverse matrix (part of Eq23 in DP_E)
+	  Vinv          <- ginv(V.remle);
+	# REMLE of mu (mu.hat) with Eq23 in DP_E
+	  mu.remle      <- (t(j)%*%Vinv%*%yt)/(t(j)%*%Vinv%*%j);
+  #AIC
+	  AIC           <- -2*lnL.hat + 2*4 #where 4 = length(mles)... 
+	
+	#Results
+	  out           <- list(remles = c(mu.remle, 
+	                                   theta.remle, 
+	                                   betasq.remle, 
+	                                   tausq.remle),
+	                        lnLhat = lnL.hat,
+	                        AIC = AIC)
+	return(out)	
+}
+```
+
+## 3.5. OUSS-MLE - Nonstationary
+
+For populations experiencing transient growth phases, we can not assume that the first observations arise from stationary distributions (*e.g.*, during colonization of new areas, translocations, or recovery after catastrophic events). We can apply the multivariate normal log-likelihood, but the element in the mean vector $\mathbf{m}$ correspond to the data value $y_i$ (from the infinitesimal Itô trasnformation) given by $E[Y(t_i)] = \mu-(\mu-x_0)\exp(-\theta t_i)$ (***Eq. 13*** in ***DP_E***) instead of $E[Y(t_i)] = \mu$ (***Eq. 16*** in ***DP_E***), here we denote this new vector $\mathbf{u}$. In addition, the variance is $V[Y(t_i)]=\frac{\beta^2}{2\theta}(1-\exp(-2\theta t_i))+\tau^2$ (***Eq. 14*** in ***DP_E***) instead of $V[Y(t_i)]=\frac{\beta^2}{2\theta}+\tau^2$ (***Eq. 17*** in ***DP_E***). The log-likelihood must be numerically maximized jointly for the five unknown parameters: $\mu$ (the trend parameters for the log-abundance mean, no stationary), $\theta$ (rate to approach to stationarity), $\beta^2$ (variability of process noise), $\tau^2$ (variability of sampling), and $x_0$ (the initial population, named $\beta$ by ***H_O***).
+
+$$
+\ln{L}(\mu, \theta, \beta^2, \tau^2, x_0) = -\frac{(q+1)}{2}\ln(2\pi)-\frac{1}{2}\ln(|\mathbf{V}|)-\frac{1}{2}(\mathbf{y}-\mathbf{u})'\mathbf{V}^{-1}(\mathbf{y}-\mathbf{u})
+$$
+
+For the numerical optimization, we will need three arguments:
+
+1.  A vector of time-series of log-observed abundances `yt` ($\mathbf{y}$)
+2.  A vector of observation times `tt`
+3.  A vector of initial parameters `fguess_NoSt` (a first guess for the five parameters), that could be roughly computing by provide the vector of log-abundance observations `yt` ($\mathbf{y}$) and the vector of observation times `tt` with the function `guess_ouss_NoSt()`:
+
+```{r}
+guess_ouss_NoSt <- function(yt,tt){
+	
+  # Time-vector starting in 0.
+    t.i     <- tt-tt[1];   
+  # Number of time-series transitions
+    q       <- length(yt)-1;   
+  # length of time-series
+    qp1     <- q+1;
+  # time intervals
+    t.s     <- t.i[2:qp1]-t.i[1:q];  
+  # mean of the observations as assumed to arise from stationary distribution
+    Ybar    <- mean(yt);
+  # Variance of the observations
+    Yvar    <- sum((yt-Ybar)*(yt-Ybar))/q;
+	  
+  # Initial population - borrowed from EGSS (if we now exactly x_0 = y_0)
+  
+  # mean of the time series
+    Tbar    <- mean(t.i)
+  # trend parameter for EGOE (r = ln(lambda))
+    r.egoe  <- sum((t.i-Tbar)*(yt-Ybar))/sum((t.i-Tbar)*(t.i-Tbar));
+  # Initial population  of EGOE
+    x0.egoe <- Ybar-r.egoe*Tbar
+  # Initial population  of EGPN is the first observation
+    x0.egpn <- yt[1];
+  # Initial population
+    x0.out  <- (x0.egoe+x0.egpn)/2;
+	  
+  # Kludge an initial value for theta based on mean of Y(t+s) given Y(t).
+    th1     <- -mean(log(abs((yt[2:qp1]-Ybar)/(yt[1:q]-Ybar)))/t.s);            
+  # Moment estimate using stationary distribution
+    bsq1    <- 2*th1*Yvar/(1+2*th1);       
+  # Observation error variance, assumed as first guess as betasq=tausq.
+    tsq1    <- bsq1;                         
+
+  # What to do if initial guesses is three 0's (or NAs)? Assume arbitrary values
+    three0s <- sum(c(th1,bsq1,tsq1))
+	  
+    if(three0s==0|is.na(three0s)){
+	    th1   <- 0.5;
+	    bsq1  <- 0.09; 
+	    tsq1  <- 0.23;}
+	  
+    out1    <- c(th1,
+                 bsq1,
+                 tsq1,
+                 x0.out);
+	
+  # What to do if initial guesses are too little? Assume arbitrary values
+    if(sum(out1<1e-7)>=1){
+      out1  <- c(0.5, 
+                 0.09, 
+                 0.23, 
+                 1.6)}
+	
+  # Expected value of Y(t)
+    mu1     <- Ybar - (Ybar-x0.out)*exp(-th1*Tbar)
+	  
+    out     <- c(mu1,
+                 out1);
+	
+	return(abs(out))
+}
+```
+
+The numerically jointly maximization for the five unknown parameters $\mu$, $\theta$, $\beta^2$, $\tau^2$, and $x_0$ is
+
+```{r}
+negloglike_ouss_mle_NoSt <- function(yt,tt,fguess_NoSt){
+		
+  # from the mu initial guess for nonstationary (guess.ouss.NoSt)
+    mu          <- fguess_NoSt[1];
+  # Constrains parameters theta, beta^2, and tau^2 > 0
+    guess       <- exp(fguess_NoSt[2:4]); 
+  # speed of equilibration (Eq1 in DP_E)
+    theta       <- guess[1];    
+  # variability of process noise
+    betasq      <- guess[2];    
+  # variability of sampling
+    tausq       <- guess[3];  
+  # initial population (initial guess)
+    x0          <- fguess_NoSt[5];
+  # number of time-series transitions
+    q           <- length(yt) - 1;
+  # length of time-series
+    qp1         <- q+1;         
+  # Time-vector starting in 0.
+    t.i         <- tt-tt[1];
+	 
+  # vector u, from Eq13 in DP_E
+    u           <- rep(0,qp1)
+    for (t in 0:qp1){
+	    u[t]      <- mu - (mu-x0)*exp(-theta*t)
+	  }
+  # Variance iterate with t (Eq14 in DP_E)
+    Var.inf     <- rep(0,qp1)
+	  for (t in 0:qp1){
+	    Var.inf[t] <- (betasq/(2*theta))*(1-exp(-2*theta*t))+tausq
+	  }
+	  
+  #time intervals (not used here?)
+    t.s       <- tt[2:qp1] - tt[1:q]; 
+	
+  # part of Eq15 in DP_E
+    t.cols    <- matrix(rep(tt,each=qp1),
+                        nrow=qp1,
+                        ncol=qp1,
+                        byrow=FALSE);
+  # (part of Eq15 in DP_E)
+    t.rows    <- t(t.cols);    
+	# (part of Eq15 in DP_E) 
+	  abs.diffs <- abs(t.rows-t.cols); 
+	# save minima of input values in the matrices
+	  min.titj  <- pmin(t.rows,t.cols);
+	# Covariance (Eq15 in DP_E)
+	  V         <- (betasq/(2*theta))*(1-exp(-2*theta*min.titj))*exp(-theta*abs.diffs); 
+	  diag(V)   <- diag(V) + rep(tausq,qp1);
+
+	#note the signs change because we want here the negative log-likelihood (Eq19*-1)
+	  neglogl   <- (qp1/2)*log(2*pi) + (1/2)*log(det(V)) + (1/2)*(yt-u)%*%ginv(V)%*%(yt-u);
+	
+	return(neglogl)	
+}
+```
+
+Now we can compute the MLE of the OUSS model for nonstationary cases and unknown initial population with the function `ouss_mle_NoSt()`
+
+```{r}
+ouss_mle_NoSt <- function(yt,tt,fguess_NoSt){
+	
+  # Time-vector starting in 0.
+    t.i         <- tt-tt[1];
+  # Number of time-series transitions
+    q           <- length(yt)-1;
+  # length of time-series
+    qp1         <- q+1;
+  # initial guesses (mu and x0 as estimated,while theta, betasq, and tausq at log scale (?))
+    guess.optim <- c(fguess_NoSt[1], 
+                     log(fguess_NoSt[2:4]),
+                     fguess_NoSt[5]) 
+  # numerical optimization
+    optim.out   <- optim(par=guess.optim, 
+	                   fn=negloglike_ouss_mle_NoSt, 
+	                   method="Nelder-Mead", 
+	                   yt=yt, 
+	                   tt=t.i)
+  #Extract MLEs and AIC
+    mles        <- c(optim.out$par[1], 
+                     exp(optim.out$par[2:4]), 
+                     optim.out$par[5])
+    lnL.hat     <- - optim.out$value[1]
+    AIC         <- -2*lnL.hat + 2*5 #where 5 = length(MLEs)... 
+	
+    out         <- list(mles=mles, 
+                        lnL.hat=lnL.hat,
+                        AIC=AIC)
+  return(out)
+}
+```
+
+If by any chance we know the initial population (as in translocations of a known number of individuals), we can fix the parameter $x_0$, and the observation of that initial population represent the ecological process estimation ($y_0 = x_0$). In this case, the MLE uses the same multivariate normal log-likelihood, but applied to just $q$ observations (because we do not include $y_0$) recorded at times $t_1$, $t_2$, ..., $t_q$. 
+
+$$
+\ln{L}(\mu, \theta, \beta^2, \tau^2) = -\frac{q}{2}\ln(2\pi)-\frac{1}{2}\ln(|\mathbf{V}|)-\frac{1}{2}(\mathbf{y}-\mathbf{u})'\mathbf{V}^{-1}(\mathbf{y}-\mathbf{u})
+$$
+
+
+## 3.6. Parametric bootstrap functions
+
+The parametric bootstrapping provide confidence intervals of the parameters. ***DP_E*** recommended 2000 simulations or more. In addition, this technique allows predict values in missing times of the time-series. More relevant, we can simulate trends from fitted SS models of different versions for conducting risk-based population viability monitoring (VPM). We will require the following functions:
+
+### 3.6.1. Multivariate Normal random number generator
+
+To generate random numbers from a multivariate normal distribution. It requires: 
+1. `n` = the number of random samples of a multivariate normal vector 
+2. $\mu$ = mean vector of the multivariate normal distribution to sample from 
+3. `cov.mat` = Variance-covariance matrix of the multivariate normal distribution to sample from
+
+```{r}
+randmvn <- function(n, mu.vec, cov.mat){
+	
+  # Save the length of the mean vector of the multivariate normal distribution to sample
+    p         <- length(mu.vec);
+  # The Cholesky decomposition (factorization of a real symmetric positive-definite sqr matriz)
+    Tau       <- chol(cov.mat, pivot=TRUE);
+  # generate normal deviates outside loop
+    Zmat      <- matrix(rnorm(n=p*n,mean=0,sd=1),nrow=p,ncol=n); 
+	
+  # empty matrix
+    out       <- matrix(0,nrow=p,ncol=n);
+  # iterate
+    for(i in 1:n){
+      Z       <- Zmat[,i];
+      out[,i] <- t(Tau)%*%Z + mu.vec
+		}
+	
+  return(out)
+}
+```
+
+### 3.6.2. Simulation functions
+
+To simulate ≥2000 data sets for EGSS, OUSS.St, and OUSS.NoSt models fitted. First, lets do EGSS, which requires:
+
+1.  The number of bootstrap replicates to simulate (≥2000) `nsims` 
+2.  The ORIGINAL vector of observation times `tt` ($t_0$, $t_1$, $t_2$, ..., $t_q$)
+3.  A vector of parameters values estimated from `egss_mle()` ($\hat{\theta}$, $\hat{\sigma^2}$, $\hat{\tau^2}$, $\hat{x_0}$; `egss$mles`) 
+
+```{r}
+egss_sim <- function(nsims,tt,parms){
+	
+  # Time-vector starting in 0.
+    t.i           <- tt-tt[1];   
+  # Number of time-series transitions
+    q             <- length(t.i)-1;   
+  # length of time-series
+    qp1           <- q+1;
+    
+  # parameters
+    theta         <- parms[1];
+    sigmasq       <- parms[2];
+    tausq         <- parms[3];
+    x0            <- parms[4];
+
+    vx      <- matrix(0,qp1,qp1);
+    for(i in 1:q){ 
+		  vx[((i+1):qp1),((i+1):qp1)] <- matrix(1,(qp1-i),(qp1-i))*t.i[(i+1)];
+	  } 
+    
+    Sigma.mat     <- sigmasq*vx;
+    Itausq        <- matrix(rep(0,(qp1*qp1)), 
+                            nrow=qp1, 
+                            ncol=qp1);
+    diag(Itausq)  <- rep(tausq,qp1);
+    V             <- Sigma.mat + Itausq;
+    theta.vec     <- matrix((x0+theta*t.i), 
+                            nrow=qp1,
+                            ncol=1);
+    out           <- randmvn(n=nsims,
+                             mu.vec=theta.vec,
+                             cov.mat=V);
+
+  return(out)
+}
+```
+
+Now let creates the function for the OUSS, which requires: 
+
+1.  The number of bootstrap replicates to simulate (≥2000) `nsims` 
+2.  The ORIGINAL vector of observation times `tt` ($t_0$, $t_1$, $t_2$, ..., $t_q$)
+3.  A vector of parameters values estimated from `ouss_remle()` ($\hat{\mu}$, $\hat{\theta}$, $\hat{\beta^2}$, $\hat{\tau^2}$; `ouss.st$remles`) 
+
+```{r}
+ouss_sim <- function(nsims,tt,parms){
+
+  # Time-vector starting in 0.
+    t.i       <- tt-tt[1];   
+  # Number of time-series transitions
+    q         <- length(t.i)-1;   
+  # length of time-series
+    qp1       <- q+1;
+    
+  # parameters
+    mu        <- parms[1];
+    theta     <- parms[2]; 
+    betasq    <- parms[3];
+    tausq     <- parms[4];
+
+    Var.inf   <- betasq/(2*theta); 
+    t.s       <- t.i[2:qp1] - t.i[1:q];
+    t.cols    <- matrix(rep(t.i,each=qp1),
+                        nrow=qp1,
+                        ncol=qp1,
+                        byrow=FALSE);
+    t.rows    <- t(t.cols);
+    abs.diffs <- abs(t.rows-t.cols);
+    V         <- Var.inf*exp(-theta*abs.diffs);
+    diag(V)   <- diag(V) + rep(tausq,qp1);
+    m.vec     <- rep(mu,qp1);
+    out       <- randmvn(n=nsims, 
+                         mu.vec=m.vec,
+                         cov.mat = V)
+	return(out)
+}
+```
+
+And finally, for the OUSS.NoSt requires: 
+
+1.  The number of bootstrap replicates to simulate (≥2000) `nsims` 
+2.  The ORIGINAL vector of observation times `tt` ($t_0$, $t_1$, $t_2$, ..., $t_q$)
+3.  A vector of parameters values estimated from `ouss_mle_NoSt()` ($\hat{\mu}$, $\hat{\theta}$, $\hat{\beta^2}$, $\hat{\tau^2}$, $\hat{x_0}$; `ouss.NoSt$mles`) 
+
+```{r}
+ouss_sim_NoSt <- function(nsims,tt,parms){
+
+  # Time-vector starting in 0.
+    t.i         <- tt-tt[1];   
+  # Number of time-series transitions
+    q           <- length(t.i)-1;   
+  # length of time-series
+    qp1         <- q+1;
+    
+  # parameters
+  	mu          <- parms[1];
+  	theta       <- parms[2]; 
+  	betasq      <- parms[3];
+  	tausq       <- parms[4];
+  	x0          <- parms[5];  
+
+  # Variance iterate with t (Eq14 in DP_E)
+    Var.inf     <- rep(0,qp1)
+    for (t in 0:qp1){
+      Var.inf[t]<- (betasq/(2*theta))*(1-exp(-2*theta*t))+tausq
+	  }
+	
+    t.s         <- t.i[2:qp1] - t.i[1:q];
+    t.cols      <- matrix(rep(t.i,each=qp1),
+                          nrow=qp1,
+                          ncol=qp1,
+                          byrow=FALSE);
+  	t.rows      <- t(t.cols);
+  	abs.diffs   <- abs(t.rows-t.cols);
+  	min.titj    <- pmin(t.rows,t.cols);
+  	V           <- (betasq/(2*theta))*(1-exp(-2*theta*min.titj))*exp(-theta*abs.diffs); 
+    diag(V)     <- diag(V) + rep(tausq,qp1);
+  # vector u, from Eq13 in DP_E
+    u           <- rep(0,qp1)
+    for (t in 0:qp1){
+      u[t] <- mu - (mu-x0)*exp(-theta*t)
+	  }
+
+    out         <- randmvn(n=nsims,
+                           mu.vec=u,
+                           cov.mat=V)
+	return(out)
+}
+```
+
+### 3.6.3. Predicted trajectory of unobserved process (OAC - Only OUSS.St)
+
+This function(s) will predict the trajectory of unobserved process (abundance).
+
+##### EGSS predicted trajectory (NOT READY, yet)
+
+For EGSS it requires (in theory... **NOT READY**, yet):
+
+1.  A vector of time-series of log-observed abundances `yt` ($\mathbf{y}$)
+2.  A vector of observation times `tt`
+3.  A vector of parameters values estimated from `EGSS.MLE()` ($\hat{\theta}$, $\hat{\sigma^2}$, $\hat{\tau^2}$, $\hat{x_0}$) 
+
+```{r eval=F}
+egss_predict <- function(yt,tt,parms){
+	
+  # Time-vector starting in 0.
+	  t.i     <- tt-tt[1];   
+	# Number of time-series transitions
+	  q       <- length(t.i)-1;   
+	# length of time-series
+    qp1     <- q+1;
+    t.s     <- t.i[2:qp1] - t.i[1:q];
+    
+  # parameters
+    theta   <- parms[1];
+	  sigmasq <- parms[2];
+	  tausq   <- parms[3];
+	  x0      <- parms[4];
+	 
+	# Missing t.s   
+	  nmiss   <- t.s-1;
+	  long.nmiss <- c(0,nmiss);
+	  Nmiss   <- sum(nmiss)
+
+	  vx      <- matrix(0,qp1,qp1);
+	  for(i in 1:q){ 
+		  vx[((i+1):qp1),((i+1):qp1)] <- matrix(1,(qp1-i),(qp1-i))*t.i[(i+1)];
+	  } 
+	Sigma.mat    <- sigmasq*vx;
+	Itausq       <- matrix(rep(0,(qp1*qp1)), 
+	                       nrow=qp1, 
+	                       ncol=qp1);
+	diag(Itausq) <- rep(tausq,qp1);
+	V            <- Sigma.mat + Itausq;
+	
+	D1mat=cbind(-diag(1/t.s),
+	            matrix(0,q,1))+cbind(matrix(0,q,1),
+	                                 diag(1/t.s));
+	
+	V1mat=D1mat%*%V%*%t(D1mat); 
+	
+	W.t=(yt[2:qp1]-yt[1:q])/t.s;
+	j1=matrix(1,q,1); 
+	V1inv=ginv(V1mat);
+	
+	theta.mle=(t(j1)%*%V1inv%*%W.t)/(t(j1)%*%V1inv%*%j1); 
+	j=matrix(1,qp1,1); 
+	Vinv=ginv(V);
+	x0.mle=(t(j)%*%Vinv%*%(yt-c(theta.mle)*t.i))/(t(j)%*%Vinv%*%j);
+	Var_theta.mle=1/(t(j1)%*%V1inv%*%j1); # Variance of mu 
+	theta_hi.mle=theta.mle+1.96*sqrt(Var_theta.mle); # 95% CI for mu 
+	theta_lo.mle=theta.mle-1.96*sqrt(Var_theta.mle)
+	
+	#Calculate estimated population size for EGSS model
+	
+	m=rep(1,qp1); # Will contain Kalman means for Kalman calculations.
+	v=rep(1,qp1); # Will contain variances for Kalman calculations.
+	
+	m[1]=x0; # Initial mean of Y(t). 
+	v[1]=tausq; # Initial variance of Y(t). 
+	
+	for (ti in 1:q) # Loop to generate estimated population abundances 
+	  { # using Kalman filter (see equations 6 & 7, # Dennis et al. (2006)).
+	  m[ti+1]=theta+(m[ti]+((v[ti]-tausq)/v[ti])*(yt[ti]-m[ti]));
+	  v[ti+1]=tausq*((v[ti]-tausq)/v[ti])+sigmasq+tausq; 
+	  } 
+	
+	# The following statement calculates exp{E[X(t) | Y(t), Y(t-1),...,Y(0)]};
+	# see equation 54 in Dennis et al. (2006).
+	
+	Predict.t=exp(m+((v-tausq)/v)*(yt-m));
+
+}
+```
+
+##### OUSS predicted trajectory
+
+For the OUSS in stationary dynamic, the function requires: 
+
+1.  A vector of time-series of log-observed abundances `yt` ($\mathbf{y}$)
+2.  A vector of observation times `tt`
+3.  A vector of parameters values estimated from `OUSS.St.MLE()` ($\hat{\mu}$, $\hat{\theta}$, $\hat{\beta^2}$, $\hat{\tau^2}$) 
+4.  A logical argument for simple plotting (`T`/`F`)
+
+```{r}
+ouss_predict <- function(yt,tt,parms, plot.it="TRUE"){
+
+	  t.i             <- tt-tt[1];   
+	  q               <- length(t.i)-1;   
+    qp1             <- q+1;
+    
+  # parameters
+	  mu              <- parms[1];
+	  theta           <- parms[2]; 
+	  betasq          <- parms[3];
+	  tausq           <- parms[4];
+
+	  Var.inf         <- betasq/(2*theta); 
+	  t.s             <- t.i[2:qp1] - t.i[1:q];
+	  t.cols          <- matrix(rep(t.i,each=qp1),nrow=qp1,ncol=qp1, byrow=FALSE);
+	  t.rows          <- t(t.cols);
+	  abs.diffs       <- abs(t.rows-t.cols);
+
+	  nmiss           <- t.s-1;
+	  long.nmiss      <- c(0,nmiss);
+	  Nmiss           <- sum(nmiss)
+
+	  long.t          <- t.i[1]:max(t.i)
+	  where.miss      <- which(is.na(match(x=long.t,table=t.i)),
+	                           arr.ind=TRUE)
+	  lt.cols         <- matrix(rep(long.t),
+	                            nrow=(qp1+Nmiss),
+	                            ncol=(qp1+Nmiss),
+	                            byrow=FALSE);
+	  lt.rows         <- t(lt.cols);
+	  labs.diffs      <- abs(lt.rows-lt.cols);
+	
+	  Sigma.mat       <- Var.inf*exp(-theta*abs.diffs);
+	  Itausq          <- matrix(0,qp1,qp1);
+	  diag(Itausq)    <- rep(tausq,qp1);
+	  V               <- Sigma.mat+Itausq;
+
+	  long.V          <- Var.inf*exp(-theta*labs.diffs) + diag(rep(tausq,(qp1+Nmiss)))
+
+	  Predict.t       <- rep(0,qp1);
+	  Muvec           <- rep(mu,q);
+	  miss.predict    <- list()
+	  Muvec.miss      <- rep(mu,qp1);
+	  start.miss      <- 1
+	  stop.miss       <- 0
+    for (tj in 1:qp1){
+		  Y.omitj       <- yt[-tj];    #  Omit observation at time tj.
+		  V.omitj       <- V[-tj,-tj];  #  Omit row tj and col tj from var-cov matrix.
+		  V12           <- V[tj,-tj];       #  Submatrix:  row tj without col tj.
+		  Predict.t[tj] <- mu+V12%*%ginv(V.omitj)%*%(Y.omitj-Muvec);  #  Graybill's 1976 Thm.
+		
+    if(long.nmiss[tj]==0){
+      miss.predict[[tj]] <- Predict.t[tj]}else 
+		    if(long.nmiss[tj]>0){
+
+			    start.miss <- stop.miss+1
+			    ntjmiss    <- long.nmiss[tj]
+			    mu.miss    <- rep(mu,ntjmiss);
+			    ind.tjmiss <- where.miss[start.miss:(start.miss+(ntjmiss-1))]
+			    stop.miss  <- stop.miss+ntjmiss
+	
+			    longV12    <- long.V[ind.tjmiss,-where.miss]		
+			
+			    miss.predict[[tj]] <- c(mu.miss + longV12%*%ginv(V)%*%(yt-Muvec.miss), Predict.t[tj])
+		      }
+	     }
+
+	Predict.t <- exp(Predict.t);
+	LPredict.t <- exp(as.vector(unlist(miss.predict)))
+
+	isinf <- sum(is.infinite(Predict.t))
+	if(isinf>0){
+	  where.infs <- which(is.infinite(Predict.t)==TRUE, arr.ind=TRUE)
+	  Predict.t[where.infs] <- .Machine$double.xmax
+	}
+
+	isinf2 <- sum(is.infinite(LPredict.t))
+	if(isinf2>0){
+	  where.infs <- which(is.infinite(LPredict.t)==TRUE, arr.ind=TRUE)
+	  LPredict.t[where.infs] <- .Machine$double.xmax
+	}
+	
+		if(plot.it=="TRUE"){	
+		#  Plot the data & model-fitted values
+		#X11()
+		plot(tt,exp(yt),xlab="Time",ylab="Population abundance",type="b",cex=1.5, 
+			main="Predicted (--) and observed (-o-) abundances");#  Population data are circles.
+		par(lty="dashed"); #  Predicted abundances are dashed line.
+		points(tt,Predict.t, type="l", lwd=1);
+	}
+	
+	return(list(cbind(tt,Predict.t,exp(yt)), cbind(long.t,LPredict.t) ))
+}
+```
+
+Just to compare the trajectories, lets do two examples. First, with the example data:
+
+```{r}
+#a vector of parameters
+REMLEstimates.ouss <- ouss_remle(yt = yt1, tt = tt1, guess_ouss(yt = yt1, tt = tt1))
+ouss_predict(yt = yt1, tt = tt1, REMLEstimates.ouss$remles, plot.it = T)
+```
+
+and other with data removed:
+
+```{r}
+#a vector of parameters
+REMLEstimates.ouss.gap <- ouss_remle(yt = yt2, tt = tt2, guess_ouss(yt = yt2, tt = tt2))
+ouss_predict(yt = yt2, tt = tt2, REMLEstimates.ouss.gap$remles, plot.it = T)
+```
+
+Even with absent of some values, it follows the trajectory. Still, we need confidence intervals (`ouss_pboot()`, below) to be sure the MLE is within the stationary distribution.
+
+##### OUSS nonstationary dynamic predicted trajectory (NOT READY, yet)
+
+And finally, for `OUSS_NoSt_predict()`, which requires (in theory... **NOT READY** yet): 
+
+1.  A vector of time-series of log-observed abundances `yt` ($\mathbf{y}$)
+2.  A vector of observation times `tt`
+3.  A vector of parameters values estimated from `OUSS_NoSt_MLE()` ($\hat{\mu}$, $\hat{\theta}$, $\hat{\beta^2}$, $\hat{\tau^2}$, $\hat{x_0}$) 
+
+```{r eval=F}
+ouss_predict_NoSt <- function(yt,tt,parms, plot.it="TRUE"){
+
+	  t.i         <- tt-tt[1];   
+	  q           <- length(t.i)-1;   
+    qp1         <- q+1;
+    
+  # parameters
+	  mu          <- parms[1];
+	  theta       <- parms[2]; 
+	  betasq      <- parms[3];
+	  tausq       <- parms[4];
+    x0          <- parms[5];
+
+
+	  Var.inf     <- betasq/(2*theta); 
+	  t.s         <- t.i[2:qp1] - t.i[1:q];
+	  t.cols      <- matrix(rep(t.i,each=qp1),nrow=qp1,ncol=qp1, byrow=FALSE);
+	  t.rows      <- t(t.cols);
+	  abs.diffs   <- abs(t.rows-t.cols);
+
+	  nmiss       <- t.s-1;
+	  long.nmiss  <- c(0,nmiss);
+	  Nmiss       <- sum(nmiss)
+
+	  long.t      <- t.i[1]:max(t.i)
+	  where.miss  <- which(is.na(match(x=long.t,table=t.i)),arr.ind=TRUE)
+	  lt.cols     <- matrix(rep(long.t),nrow=(qp1+Nmiss),ncol=(qp1+Nmiss), byrow=FALSE);
+	  lt.rows     <- t(lt.cols);
+	  labs.diffs  <- abs(lt.rows-lt.cols);
+	
+	  Sigma.mat   <- Var.inf*exp(-theta*abs.diffs);
+	  Itausq      <- matrix(0,qp1,qp1);
+	  diag(Itausq)<- rep(tausq,qp1);
+	  V           <- Sigma.mat+Itausq;
+
+	  long.V      <- Var.inf*exp(-theta*labs.diffs) + diag(rep(tausq,(qp1+Nmiss)))
+
+	  Predict.t   <- rep(0,qp1);
+	  Muvec       <- rep(mu,q);
+	  miss.predict<- list()
+	  Muvec.miss  <- rep(mu,qp1);
+	  start.miss  <- 1
+	  stop.miss   <- 0
+	 for (tj in 1:qp1){
+		  Y.omitj       <- yt[-tj];    #  Omit observation at time tj.
+		  V.omitj       <- V[-tj,-tj];  #  Omit row tj and col tj from var-cov matrix.
+		  V12           <- V[tj,-tj];       #  Submatrix:  row tj without col tj.
+		  Predict.t[tj] <- mu+V12%*%ginv(V.omitj)%*%(Y.omitj-Muvec);  #  Graybill's 1976 Thm.
+		
+		if(long.nmiss[tj]==0){
+		  miss.predict[[tj]] <- Predict.t[tj]}else 
+		    if(long.nmiss[tj]>0){
+
+			    start.miss <- stop.miss+1
+			    ntjmiss <- long.nmiss[tj]
+			    mu.miss <- rep(mu,ntjmiss);
+			    ind.tjmiss <- where.miss[start.miss:(start.miss+(ntjmiss-1))]
+			    stop.miss  <- stop.miss+ntjmiss
+	
+			    longV12 <- long.V[ind.tjmiss,-where.miss]		
+			
+			    miss.predict[[tj]] <- c(mu.miss + longV12%*%ginv(V)%*%(yt-Muvec.miss), Predict.t[tj])
+		      }
+	     }
+
+	Predict.t <- exp(Predict.t);
+	LPredict.t <- exp(as.vector(unlist(miss.predict)))
+
+	isinf <- sum(is.infinite(Predict.t))
+	if(isinf>0){
+	  where.infs <- which(is.infinite(Predict.t)==TRUE, arr.ind=TRUE)
+	  Predict.t[where.infs] <- .Machine$double.xmax
+	}
+
+	isinf2 <- sum(is.infinite(LPredict.t))
+	if(isinf2>0){
+	  where.infs <- which(is.infinite(LPredict.t)==TRUE, arr.ind=TRUE)
+	  LPredict.t[where.infs] <- .Machine$double.xmax
+	}
+	
+		if(plot.it=="TRUE"){	
+		#  Plot the data & model-fitted values
+		#X11()
+		plot(tt,exp(yt),xlab="Time",ylab="Population abundance",type="b",cex=1.5, 
+			main="Predicted (--) and observed (-o-) abundances");#  Population data are circles.
+		par(lty="dashed"); #  Predicted abundances are dashed line.
+		points(tt,Predict.t, type="l", lwd=1);
+	}
+	
+	return(list(cbind(tt,Predict.t), cbind(long.t,LPredict.t) ))
+}
+```
+
+
+### 3.6.4. Parametric bootstrapping (OAC - Only OUSS stationary)
+
+Finally, we will estimate CI. For now only with the OUSS. It requires: 
+
+1.  A vector of time-series of log-observed abundances `yt` ($\mathbf{y}$)
+2.  A vector of observation times `tt`
+3.  A vector of parameters values estimated from `ouss_mle()` or `ouss_remle()` ($\hat{\mu}$, $\hat{\theta}$, $\hat{\beta^2}$, $\hat{\tau^2}$) 
+4.  A logical argument for simple plotting (`T`/`F`)
+
+```{r}
+ouss_pboot <- function(B=2, yt, tt, parms, REMLE="FALSE", plot.it="FALSE"){
+	
+  	t.i             <- tt-tt[1];   
+	  q               <- length(t.i)-1;   
+    qp1             <- q+1;
+    
+  # parameters
+	  mu              <- parms[1];
+	  theta           <- parms[2]; 
+	  betasq          <- parms[3];
+	  tausq           <- parms[4];
+  
+	#tt <- Tvec-Tvec[1]
+	long.t <- t.i[1]:max(t.i)
+	nparms    <- length(parms);
+	preds.boot1<- matrix(0,nrow=B,ncol=length(t.i))
+	preds.boot2<- matrix(0,nrow=B,ncol=length(long.t))
+	
+	if(REMLE=="TRUE"){
+
+		boot.remles <- matrix(0,nrow=B,ncol=nparms+1); 
+		all.sims    <- ouss_sim(nsims=B,parms=parms,tt=tt);
+		all.preds   <- ouss_predict(yt=yt,tt=tt,parms=parms,plot.it="FALSE")
+		remle.preds <- all.preds[[1]][,2]
+		remle.longpreds <- all.preds[[2]][,2]		
+
+		for(b in 1:B ){
+		
+			bth.timeseries <- all.sims[,b];
+  		remles.out <- ouss_remle(yt=bth.timeseries,tt=tt, fguess = parms);
+			boot.remles[b,] <- c(remles.out$remles, remles.out$lnLhat);
+			all.bootpreds <- ouss_predict( yt=bth.timeseries, 
+			                                  tt=tt, 
+			                                  parms=remles.out$remles, 
+			                                  plot.it="FALSE");
+			preds.boot1[b,] <- all.bootpreds[[1]][,2]
+			preds.boot2[b,] <- all.bootpreds[[2]][,2]
+			
+		} 
+	
+		CIs.mat <- apply(boot.remles,2,FUN=function(x){
+		  quantile(x,probs=c(0.025,0.975))});
+		CIs.mat <- rbind(CIs.mat[1,1:4],parms,CIs.mat[2,1:4]);
+		rownames(CIs.mat) <- c("Lower_CI_2.5","REMLE","Upper_CI_97.5");
+		colnames(CIs.mat) <- c("mu", "theta","betasq","tausq");
+		
+		preds.CIs1 <- apply(preds.boot1,2,FUN=function(x){quantile(x,probs=c(0.025,0.975))});
+		mean.boots <- apply(preds.boot1,2,FUN=function(x){quantile(x,probs=0.50)})
+		preds.CIs1 <- t(rbind(tt,
+		                      exp(yt),
+		                      remle.preds-(mean.boots-preds.CIs1[1,]), 
+		                      remle.preds, 
+		                      remle.preds+(preds.CIs1[2,]-mean.boots)));
+		colnames(preds.CIs1) <- c("Time","Observed","Lower_CI_2.5","REMLE","Upper_CI_97.5");
+
+		preds.CIs2 <- apply(preds.boot2,2,FUN=function(x){quantile(x,probs=c(0.025,0.975))});
+		mean.boots2 <- apply(preds.boot2,2,FUN=function(x){quantile(x,probs=0.50)})
+		preds.CIs2 <- t(rbind(long.t+tt[1],
+		                      remle.longpreds-(mean.boots2-preds.CIs2[1,]), 
+		                      remle.longpreds, 
+		                      remle.longpreds+(preds.CIs2[2,]-mean.boots2)));
+
+		#preds.CIs2 <- apply(preds.boot2,2,FUN=function(x){quantile(x,probs=c(0.025,0.5,0.975))});
+		#preds.CIs2 <- t(rbind(long.t+Tvec[1],preds.CIs2));
+		colnames(preds.CIs2) <- c("Time","Lower_CI_2.5","REMLE","Upper_CI_97.5");
+		#pred.CIs2 <- cbind(preds.CIs2[,1], reml.longpreds-(preds.CIs2[,3]-preds.CIs2[,2]),reml.longpreds,reml.longpreds+(preds.CIs2[,4]-preds.CIs2[,3]))
+		
+		boot.list <- list(boot.remles = boot.remles, CIs.mat = CIs.mat, preds.CIs1 = preds.CIs1, 
+					 preds.CIs2=preds.CIs2);
+		
+		if(plot.it=="TRUE"){
+			par(mfrow=c(2,2));
+			hist(boot.remles[,1],main=expression(hat(mu)),xlab="");
+		  abline(v=parms[1],lwd=2,col="red");
+			hist(boot.remles[,2],main=expression(hat(theta)),xlab="");
+		  abline(v=parms[2],lwd=2,col="red");
+			hist(boot.remles[,3],main=expression(hat(beta^2)),xlab="");
+		  abline(v=parms[3],lwd=2,col="red");
+			hist(boot.remles[,4],main=expression(hat(tau^2)),xlab="");
+		  abline(v=parms[4],lwd=2,col="red");
+		  par(mfrow=c(1,1));
+		}
+		return(boot.list)
+		
+		}else{
+
+		boot.mles <- matrix(0,nrow=B,ncol=nparms+2);
+		all.sims  <- ouss_sim(nsims=B, tt=tt, parms=parms);
+		all.preds <- ouss_predict(yt=yt, tt=tt, parms=parms, plot.it="FALSE")
+		mle.preds<- all.preds[[1]][,2]
+		mle.longpreds <- all.preds[[2]][,2]		
+		
+		for(b in 1:B ){
+		
+			bth.timeseries <- all.sims[,b];
+			mles.out <- ouss_mle(yt = bth.timeseries, tt=tt, fguess = parms);
+			boot.mles[b,] <- c(mles.out$mles, mles.out$lnL.hat,mles.out$AIC);
+			all.bootpreds <- ouss_predict(yt=bth.timeseries, tt=tt, parms=mles.out$mles, plot.it="FALSE");
+			preds.boot1[b,] <- all.bootpreds[[1]][,2]
+			preds.boot2[b,] <- all.bootpreds[[2]][,2]
+			} 
+		
+		CIs.mat <- apply(boot.mles,2,FUN=function(x){quantile(x,probs=c(0.025,0.975))});
+		CIs.mat <- rbind(CIs.mat[1,1:4],
+		                 parms,
+		                 CIs.mat[2,1:4]);
+		rownames(CIs.mat) <- c("Lower_CI_2.5","MLE","Upper_CI_97.5");
+		colnames(CIs.mat) <- c("mu", "theta","betasq","tausq");
+		
+		#preds.CIs1 <- apply(preds.boot1,2,FUN=function(x){quantile(x,probs=c(0.025,0.975))});
+		#preds.CIs1 <- t(rbind(Tvec,preds.CIs1[1,], ml.preds, preds.CIs1[2,]));
+		preds.CIs1 <- apply(preds.boot1,2,FUN=function(x){quantile(x,probs=c(0.025,0.5,0.975))});
+		preds.CIs1 <- t(rbind(tt,
+		                      exp(yt),
+		                      preds.CIs1));
+		colnames(preds.CIs1) <- c("Time", "Observed","Lower_CI_2.5","MLE","Upper_CI_97.5");
+		pred.CIs1 <- cbind(preds.CIs1[,1], 
+		                   mle.preds-(preds.CIs1[,3]-preds.CIs1[,2]), 
+		                   mle.preds, 
+		                   mle.preds+(preds.CIs1[,4]-preds.CIs1[,3]))
+
+		#preds.CIs2 <- apply(preds.boot2,2,FUN=function(x){quantile(x,probs=c(0.025,0.975))});
+		#preds.CIs2 <- t(rbind(Tvec,preds.CIs2[1,], ml.preds, preds.CIs2[2,]));
+		preds.CIs2 <- apply(preds.boot2,2,FUN=function(x){quantile(x,probs=c(0.025,0.5,0.975))});
+		preds.CIs2 <- t(rbind(long.t+tt[1],
+		                      preds.CIs2));
+		pred.CIs2 <- cbind(preds.CIs2[,1], 
+		                   mle.longpreds-(preds.CIs2[,3]-preds.CIs2[,2]),
+		                   mle.longpreds,
+		                   mle.longpreds+(preds.CIs2[,4]-preds.CIs2[,3]))
+		
+		colnames(preds.CIs2) <- c("Time","Lower_CI_2.5","MLE","Upper_CI_97.5");
+		
+		boot.list <- list(boot.mles = boot.mles, 
+		                  CIs.mat = CIs.mat, 
+		                  preds.CIs1 = preds.CIs1, 
+		                  preds.CIs2 = preds.CIs2)
+
+		if(plot.it=="TRUE"){
+			par(mfrow=c(2,2));
+			hist(boot.mles[,1],main=expression(hat(mu)),xlab="");
+		  abline(v=parms[1],lwd=2,col="red");
+			hist(boot.mles[,2],main=expression(hat(theta)),xlab="");
+		  abline(v=parms[2],lwd=2,col="red");
+			hist(boot.mles[,3],main=expression(hat(beta^2)),xlab="");
+		  abline(v=parms[3],lwd=2,col="red");
+			hist(boot.mles[,4],main=expression(hat(tau^2)),xlab="");
+		  abline(v=parms[4],lwd=2,col="red");	
+		  par(mfrow=c(1,1));
+		}
+		
+		return(boot.list)
+		
+	}# End if/else
+		
+}
+```
+
+A little test
+
+```{r}
+ouss_pboot(B = 100, yt = yt2, tt = tt2, parms = REMLEstimates.ouss.gap$remles, REMLE = TRUE, plot.it = TRUE)
+```
+
+### 3.6.5. A function to run the estimation, compute the predictions and run a parametric bootstrap
+
+With a single function (`ouss_calc()`), we can run estimation, compute predictions, and run parametric bootstrap
+
+```{r}
+ouss_calc <- function(yt, tt, pmethod="ML", nboot, plot.pred="TRUE", plot.bootdists = "TRUE"){
+
+	# Compute a rough guess of the parameter estimates to initialize the search:
+	guesscalc <- guess_ouss(yt = yt, tt=tt)
+	
+
+	# Compute either the ML or the REML estimates, according to what you specified in point 1. above
+	if(pmethod=="ML"){
+		best.guess <- ouss_mle(yt = yt, tt = tt, fguess = guesscalc);
+		AIC <- best.guess[[3]];
+		remle.option <- "FALSE"}else if (pmethod=="REML"){
+			best.guess <- ouss_remle(yt = yt, tt = tt, fguess = guesscalc);
+			remle.option <- "TRUE"}else{
+				print("Error: ML and REML are the only options allowed for 'method'")}
+
+	# Parameter estimates and maximized log-likelihood (we will print these at the end)
+	parms.est <- best.guess[[1]];
+	lnLhat    <- best.guess[[2]];
+
+	# Parametric bootstrap: computing both, parameters and predictions 95 % CI's
+	pboot.calcs <- ouss_pboot(B=nboot, 
+	                             yt = yt, 
+	                             tt = tt, 
+	                             REMLE = remle.option, 
+	                             parms = parms.est, 
+	                             plot.it = plot.bootdists);
+	
+	if(plot.pred=="TRUE"){
+	  plot(pboot.calcs$preds.CIs1[,1],
+	       pboot.calcs$preds.CIs1[,2], 
+	       xlab = "Time", ylab = "Population abundance", 
+	       type = "b", col = "blue", cex = 1.5);
+		points(pboot.calcs$preds.CIs2[,1],
+		       pboot.calcs$preds.CIs2[,3],type="l",col="red", lty = "dashed");
+		points(tt,pboot.calcs$preds.CIs1[,4],type="p",col="red");
+	  points(pboot.calcs$preds.CIs2[,1],
+		       pboot.calcs$preds.CIs2[,2],type="l",col="gray", lty = "dotted");
+	  	  points(pboot.calcs$preds.CIs2[,1],
+		       pboot.calcs$preds.CIs2[,4],type="l",col="gray", lty = "dotted");
+	  legend("top", legend=c("Observed", "Predicted", "CI"),
+       col=c("blue","red", "gray"), lty=1:3, cex=0.8)
+		}
+	
+	if(pmethod=="ML"){
+		print("AIC score");
+	  print(AIC);
+		out <- list(parms.est = parms.est, 
+		            lnLhat = lnLhat, 
+		            AIC = AIC, 
+		            pbootmat = pboot.calcs[[1]], 
+		            pboot.cis = pboot.calcs[[2]], 
+		            pboot.preds1 = pboot.calcs$preds.CIs1, 
+		            pboot.preds2 = pboot.calcs$preds.CIs2)}else{
+			out <- list(parms.est = parms.est, 
+			            lnLhat = lnLhat, 
+			            pbootmat = pboot.calcs[[1]], 
+			            pboot.cis = pboot.calcs[[2]], 
+			            pboot.preds1 = pboot.calcs$preds.CIs1,
+			            pboot.preds2 = pboot.calcs$preds.CIs2)}
+	
+	return(out);
+}
+```
+
+
+Now we can fill the parameters and test our estimates. First with the dataset of complete values:
+
+```{r}
+AmericanRedstarNOGaps <- ouss_calc(yt = yt1, 
+                                 tt = tt1, 
+                                 pmethod = "REML", 
+                                 nboot = 100, 
+                                 plot.pred = TRUE, 
+                                 plot.bootdists = T)
+```
+
+And now with the dataset with gaps
+```{r}
+AmericanRedstarGaps <- ouss_calc(yt = yt2, 
+                                 tt = tt2, 
+                                 pmethod = "REML", 
+                                 nboot = 100, 
+                                 plot.pred = TRUE, 
+                                 plot.bootdists = T)
+```
+
+Although the confidence intervals increase, the general pattern is recovered!
+
+
+# 4. Population Viability Monitoring or Risk-based viable population monitoring
+
+Let use our time-series example to estimate the probability of extinction in a risk-based viable population monitoring. The aim is to find a temporal trend of extinction risk. Our example on American Redstart monitoring the abundance of the population for 30 years. We arbitrarily removed 6, to have gaps in the time-series. We want to assess if the extinction risk of the population has been increasing or decreasing in the last 20 years. 
+
+First, let fit a stochastic population dynamic model for the first 10 observation points, storing the estimates of the parameters:
+
+```{r}
+last.tt <- 10
+
+yt2[1:last.tt] #It was already converted to the log-abundance
+tt2[1:last.tt]
+
+OUSS.partial <- ouss_remle(yt = yt2[1:last.tt], 
+                           tt = tt2[1:last.tt],
+                           fguess = guess_ouss(yt = yt2[1:last.tt],
+                                               tt = tt2[1:last.tt]))
+
+#Estimated parameters
+OUSS.partial$remles
+
+#is theta < 0.025?; If TRUE, we should use EGSS to fit and predict!
+  #If FALSE, we can use OUSS
+model <- if(OUSS.partial$remles[2] < 0.025){"EGSS"}else{"OUSS"}
+```
+
+With the estimated model parameters and the data up to the first 10 years, the probability that the population will crash below a critical threshold ($N_{critical}$, as the critical number of individuals) is estimated for the next 5 years. Let assume this $N_{critical} = 3/4 (\exp\bar{(y)})$. The resulting probability is recorded.
+
+```{r}
+#Define N_critical
+N.critical = (3/4)*mean(exp(yt2))
+
+#number of simulations
+ntraj = 100
+
+#threshold times
+thres.times <- 0:5
+
+#Maximum simulation length
+len.sim <- max(thres.times)+1
+
+#last observed time
+m = last(tt2[1:last.tt])
+
+#plot the abundance data
+plot(tt2[1:last.tt], 
+     exp(yt2[1:last.tt]), 
+     type="b", lwd=2, cex.lab=1.25, 
+     xlim=c(min(tt2),max(tt2)),
+     ylim=c(0,30), 
+     ylab="Population abundance", xlab="Time")
+
+#initiating array to store last points of simulation at time m+5
+last.points <- rep(0,ntraj)
+
+#simulate population 100 trends 
+for(j in 1:ntraj){
+  sim.mat <- ouss_sim(1,
+                      tt = thres.times,
+                      parms = OUSS.partial$remles)
+  Pop.sim <- exp(c(yt2[last.tt], sim.mat[-1]))
+  
+  if(Pop.sim[len.sim]>=N.critical){
+    lines(m+thres.times, Pop.sim, col="lightgrey", lty = "solid")
+  }else{lines(m+thres.times, Pop.sim, col="red", lty = "solid")}
+  
+  last.points[j] <- Pop.sim[len.sim]
+}
+
+#add critical value line
+abline(h=N.critical, lty=2, lwd=1)	
+
+#How many of the simulations (ntraj) end below N_critical? Probability of extinction
+P.ext <- length(which(round(last.points,2) <= N.critical))/ntraj
+
+#Lognormal with library(ke31d)
+
+kde.sims <- kde1d(x=last.points)
+#plot(kde.sims)
+
+prob.ext <- pkde1d(q=N.critical, obj=kde.sims)
+
+lines(x = (kde.sims$values*25 + m + 5),
+        y = kde.sims$grid_points,
+      col="darkgray", lwd=2, lty=1)
+
+lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*25 + m + 5),
+        y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
+      col="red", lwd=2, lty=1)
+
+title(main=paste0(model, " - P(ext risk) = ", signif(mean(c(prob.ext, P.ext)), digits=2)), cex=1.5)
+
+```
+
+Now, we can add the next observation (11) to the time-series, and the model parameters are re-estimated as well as the probability of crashing below the $N_{critical}$ for the next 5 years, and so on, so on. Let presents 4 moments
+
+
+```{r}
+last.tt <- 11
+
+yt2[1:last.tt] #It was already converted to the log-abundance
+tt2[1:last.tt]
+
+OUSS.partial <- ouss_remle(yt = yt2[1:last.tt],
+                           tt = tt2[1:last.tt],
+                           fguess = guess_ouss(yt = yt2[1:last.tt],
+                                               tt = tt2[1:last.tt]))
+
+OUSS.partial$remles 
+
+model <- if(OUSS.partial$remles[2] < 0.025){"EGSS"}else{"OUSS"}
+
+EGSS.partial <- egss_mle(yt = yt2[1:last.tt], 
+                         tt = tt2[1:last.tt],
+                         fguess_egss = guess_egss(yt = yt2[1:last.tt],
+                                                  tt = tt2[1:last.tt]))
+
+N.critical = (3/4)*mean(exp(yt2))
+
+ntraj = 100
+thres.times <- 0:5
+len.sim <- max(thres.times)+1
+m = last(tt2[1:last.tt])
+plot(tt2[1:last.tt], 
+     exp(yt2[1:last.tt]), 
+     type="b", lwd=2, cex.lab=1.25, 
+     xlim=c(min(tt2),max(tt2)),
+     ylim=c(0,30), 
+     ylab="Population abundance", xlab="Time")
+last.points <- rep(0,ntraj)
+for(j in 1:ntraj){
+  sim.mat <- egss_sim(1,
+                      tt = thres.times,
+                      parms = EGSS.partial$mles)
+   Pop.sim <- exp(c(yt2[last.tt], sim.mat[-1]))
+ 
+  if(Pop.sim[len.sim]>=N.critical){
+    lines(m+thres.times, Pop.sim, col="lightgrey", lty = "solid")
+  }else{lines(m+thres.times, Pop.sim, col="red", lty = "solid")}
+  
+  last.points[j] <- Pop.sim[len.sim]
+}
+
+abline(h=N.critical, lty=2, lwd=1)	
+
+#How many of the simulations (ntraj) end below N_critical? Probability of extinction
+probability.ext1 <- length(which(round(last.points,2) <= N.critical))/ntraj
+
+#Lognormal with library(ke31d)
+
+kde.sims <- kde1d(x=last.points)
+#plot(kde.sims)
+
+probability.ext2 <- pkde1d(q=N.critical, obj=kde.sims)
+
+probability.ext <- mean(c(probability.ext1, probability.ext2))
+
+lines(x = (kde.sims$values*25 + m + 5),
+        y = kde.sims$grid_points,
+      col="darkgray", lwd=2, lty=1)
+
+lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*25 + m + 5),
+        y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
+      col="red", lwd=2, lty=1)
+
+title(main=paste0(model, " - P(ext risk) = ", signif(probability.ext, digits=2)), cex=1.5)
+
+```
+
+
+Iterating this process, for instance for years position 10 to 24:
+
+```{r}
+#A vector of time steps to evaluate
+last.tt <- c(10:24)
+
+N.critical = (3/4)*mean(exp(yt2))
+ntraj = 100
+thres.times <- 0:5
+len.sim <- max(thres.times)+1
+
+#array to store p.below critical point (last point < N.critical/ntraj)
+  probability.ext1 <- rep(0,length(last.tt))
+#array to store p.below critical point - area under the curve
+  probability.ext2 <- rep(0,length(last.tt))
+
+par(mfrow=c(5,3),mar=c(3,3,3,1),  oma=c(2,2,2,1), mgp=c(2,0.5,0))
+
+for(t in last.tt){
+  plot(tt2[1:t], 
+     exp(yt2[1:t]), 
+     type="b", lwd=2, cex.lab=1.25, 
+     xlim=c(min(tt2),max(tt2)),
+     ylim=c(0,30), 
+     ylab="Population abundance", xlab="Time")
+  
+  last.points <- rep(0,ntraj)
+
+  OUSS.partial <- ouss_remle(yt = yt2[1:t],
+                           tt = tt2[1:t],
+                           fguess = guess_ouss(yt = yt2[1:t],
+                                               tt = tt2[1:t]))
+
+  model <- if(OUSS.partial$remles[2] < 0.025){
+    "EGSS"
+    }else{
+      "OUSS"
+      }
+  
+    if(model == "OUSS"){
+      
+      for(j in 1:ntraj){
+      
+      sim.mat <- ouss_sim(1,
+                      tt = thres.times,
+                      parms = OUSS.partial$remles)
+      
+      Pop.sim <- exp(c(yt2[t], sim.mat[-1]))
+  
+        if(Pop.sim[len.sim]>=N.critical){
+        
+          lines(tt2[t]+thres.times, Pop.sim, col="lightgrey", lty = "solid")
+        }else{
+          lines(tt2[t]+thres.times, Pop.sim, col="red", lty = "solid")}
+      
+      last.points[j] <- Pop.sim[len.sim]
+      }
+      
+      abline(h=N.critical, lty=2, lwd=1)	
+      
+      probability.ext1[t] <- length(which(round(last.points,2) <= N.critical))/ntraj
+      
+      kde.sims <- kde1d(x=last.points)
+      probability.ext2[t] <- pkde1d(q=N.critical, obj=kde.sims)
+      
+      probability.ext[t] <- mean(c(probability.ext1[t], probability.ext2[t]))
+      
+      lines(x = (kde.sims$values*10 + tt2[t] + 5),
+            y = kde.sims$grid_points,
+            col="darkgray", lwd=2, lty=1)
+      
+      lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*10 + tt2[t] + 5),
+            y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
+            col="red", lwd=2, lty=1)
+      
+      title(main=paste0(tt2[t], "-", model, "- P(ext risk) = ", signif(probability.ext[t], digits=2)), cex=1.5)}
+  
+  else{for(j in 1:ntraj){
+    
+    EGSS.partial <- egss_mle(yt = yt2[1:t],
+                           tt = tt2[1:t],
+                           fguess_egss = guess_egss(yt = yt2[1:t],
+                                               tt = tt2[1:t]))
+    
+    sim.mat <- egss_sim(1,
+                      tt = thres.times,
+                      parms = EGSS.partial$mles)
+    Pop.sim <- exp(c(yt2[t], sim.mat[-1]))
+  
+      if(Pop.sim[len.sim]>=N.critical){
+        
+        lines(tt2[t]+thres.times, Pop.sim, col="lightgrey", lty = "solid")
+      }else{
+          lines(tt2[t]+thres.times, Pop.sim, col="red", lty = "solid")}
+      
+      last.points[j] <- Pop.sim[len.sim]
+      }
+      
+      abline(h=N.critical, lty=2, lwd=1)	
+      
+      probability.ext1[t] <- length(which(round(last.points,2) <= N.critical))/ntraj
+      
+      kde.sims <- kde1d(x=last.points)
+      probability.ext2[t] <- pkde1d(q=N.critical, obj=kde.sims)
+      
+      probability.ext[t] <- mean(c(probability.ext1[t], probability.ext2[t]))
+      
+      lines(x = (kde.sims$values*10 + tt2[t] + 5),
+            y = kde.sims$grid_points,
+            col="darkgray", lwd=2, lty=1)
+      
+      lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*10 + tt2[t] + 5),
+            y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
+            col="red", lwd=2, lty=1)
+      
+      title(main=paste0(tt2[t], "-", model, "- P(ext risk) = ", signif(probability.ext[t], digits=2)), cex=1.5)}
+
+}
+
+par(mfrow=c(1,1))
+
+plot(tt2[-1],probability.ext[-1], type = "b", ylim = c(0,1), ylab = "Probability of extinction risk", xlab = "Time (year)")
+
+```
+
+
+# 3. Prepare the data from eBird and time-series vectors
+
+eBird is cool, **bhla bhla bhla...**
+
+```{r}
+snailKite <- read_rds("Abundance_data_Outcome/SnailKiteCountsDay.rds")
+
+#reduce to the maximum number in each month
+
+snailkitesmonth <- snailKite |>
+  mutate(year.t = year(observation_date),
+         month.t = month(observation_date)) |>
+  group_by(year.t, month.t) |>
+  summarise(Observed.y = max(Observed.y)) |>
+  ungroup() |>
+  mutate(Time.t = row_number())
+
+plot(snailkitesmonth$Time.t,
+     snailkitesmonth$Observed.y,
+     type = "b",
+     xlab = "Time (accumulated months)",
+     ylab = "Population abundance observed")
+```
+
+```{r}
+#each six months since the last assessment in Poli et al
+ttt <- snailkitesmonth$Time.t
+ytt <- log(snailkitesmonth$Observed.y)
+
+last.tt <- seq(10,nrow(snailkitesmonth),6)
+
+N.critical = (3/4)*mean(exp(ytt))
+ntraj = 100
+thres.times <- 0:12 #1 years
+len.sim <- max(thres.times)+1
+
+#array to store p.below critical point
+probability.ext <- rep(0,length(last.tt))
+
+par(mfrow=c(3,3),mar=c(3,3,3,1),  oma=c(2,2,2,1), mgp=c(2,0.5,0))
+
+for(t in last.tt){
+  plot(ttt[1:t], 
+     exp(ytt[1:t]), 
+     type="b", lwd=2, cex.lab=1.25, 
+     xlim=c(min(ttt),max(ttt)),
+     ylim=c(0,30), 
+     ylab="Population abundance", xlab="Time (months)")
+  
+  last.points <- rep(0,ntraj)
+
+  OUSS.partial <- ouss_remle(yt = ytt[1:t],
+                           tt = ttt[1:t],
+                           fguess = guess_ouss(yt = ytt[1:t],
+                                               tt = ttt[1:t]))
+
+  model <- if(OUSS.partial$remles[2] < 0.025){
+    "EGSS"
+    }else{
+      "OUSS"
+      }
+  
+    if(model == "OUSS"){
+      
+      for(j in 1:ntraj){
+      
+      sim.mat <- ouss_sim(1,
+                      tt = thres.times,
+                      parms = OUSS.partial$remles)
+      
+      Pop.sim <- exp(c(ytt[t], sim.mat[-1]))
+  
+        if(Pop.sim[len.sim]>=N.critical){
+        
+          lines(ttt[t]+thres.times, Pop.sim, col="lightgrey", lty = "solid")
+        }else{
+          lines(ttt[t]+thres.times, Pop.sim, col="red", lty = "solid")}
+      
+      last.points[j] <- Pop.sim[len.sim]
+      }
+      
+      abline(h=N.critical, lty=2, lwd=1)	
+      
+      P.ext <- length(which(round(last.points,2) <= N.critical))/ntraj
+      
+      kde.sims <- kde1d(x=last.points)
+      prob.ext <- pkde1d(q=N.critical, obj=kde.sims)
+      
+      probability.ext[t] <- mean(P.ext,prob.ext)
+      
+      lines(x = (kde.sims$values*10 + tt2[t] + 12),
+            y = kde.sims$grid_points,
+            col="darkgray", lwd=2, lty=1)
+      
+      lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*10 + ttt[t] + 12),
+            y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
+            col="red", lwd=2, lty=1)
+      
+      title(main=paste0("OUSS - P(ext) = ", signif(probability.ext[t], digits=2)), cex=1.5)}
+  
+  else{for(j in 1:ntraj){
+    
+    EGSS.partial <- egss_mle(yt = ytt[1:t],
+                           tt = ttt[1:t],
+                           fguess_egss = guess_egss(yt = ytt[1:t],
+                                               tt = ttt[1:t]))
+    
+    sim.mat <- egss_sim(1,
+                      tt = thres.times,
+                      parms = EGSS.partial$mles)
+    Pop.sim <- exp(c(ytt[t], sim.mat[-1]))
+  
+      if(Pop.sim[len.sim]>=N.critical){
+        
+        lines(ttt[t]+thres.times, Pop.sim, col="lightgrey", lty = "solid")
+      }else{
+          lines(ttt[t]+thres.times, Pop.sim, col="red", lty = "solid")}
+      
+      last.points[j] <- Pop.sim[len.sim]
+      }
+      
+      abline(h=N.critical, lty=2, lwd=1)	
+      
+      P.ext <- length(which(round(last.points,2) <= N.critical))/ntraj
+      
+      kde.sims <- kde1d(x=last.points)
+      prob.ext <- pkde1d(q=N.critical, obj=kde.sims)
+      
+      probability.ext[t] <- mean(P.ext,prob.ext)
+      
+      lines(x = (kde.sims$values*10 + ttt[t] + 12),
+            y = kde.sims$grid_points,
+            col="darkgray", lwd=2, lty=1)
+      
+      lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*10 + tt2[t] + 12),
+            y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
+            col="red", lwd=2, lty=1)
+      
+      title(main=paste0("EGSS - P(ext) = ", signif(probability.ext[t], digits=2)), cex=1.5)}
+
+}
+
+par(mfrow=c(1,1))
+
+plot(ttt,probability.ext, type = "b", ylim = c(0,1), ylab = "Probability of extinction", xlab = "Time (year)")
+```
+
+We can simplify the eBird data selecting only columns of our interest (it will reduce the size of the dataset)
+
+```{r eval=F}
+colsE <- c("observer_id", "sampling_event_identifier",
+           "group identifier",
+           "common_name", "scientific_name",
+           "observation_count",
+           "country", "state_code", "locality_id", "latitude", "longitude",
+           "protocol_type", "all_species_reported",
+           "observation_date",
+           "time_observations_started",
+           "duration_minutes", "effort_distance_km",
+           "number_observers")
+```
+
+To conduct some filters, we will generate temporal files in our computer. Here we generate only a single temporal file, overwriting for the different species.
+
+```{r eval=F}
+#generate a temporal file to save the filtering eBird data (f_ebd) and sampling (f_sed)
+f_ebd <- "Abundance_data_Outcome/ebd_Examples.txt" 
+f_sed <- "Abundance_data_Outcome/sed_Examples.txt" 
+```
+
+The construction of time-series of the estimation of individuals from eBird will assume spatiotemporal subsampling for the high counts (assuming to be the minimum number of individuals) per day in spatial sampling units of $100 \text{ km}^2$.
+
+```{r eval=F}
+#Spatial grid cells - diameters of ~11km (area of 95.98 ~> ~100 km^2)
+set.seed(123)
+dggs_pop <- dgconstruct(spacing = 11) 
+#spacing 11 correspond to Characteristic Length Scale (CLS), or diameter of spherical cell
+```
+
+Now, we can download the data from [eBird](https://ebird.org/data/download). Inexplicable, although we select for include the sampling event data for other examples (previous approach), only the Snail Kite in Florida contain such information. Nonetheless, we will use only the detection and count estimation by the observers. We save our eBird data files in the folder `Abundance_data`.
+
+### Snail Kite in Florida, US
+
+Filtering for protocol, distance, duration, only complete lists
+
+```{r eval=F}
+ebd_filt <- auk_ebd("Abundance_data/ebd_US-FL_snakit_smp_relMay-2024.txt") %>%
+  auk_protocol(c("Traveling", "Stationary")) %>%
+  auk_distance(distance = c(0,5)) %>%
+  auk_duration(duration = c(0,300))%>%
+  auk_complete() %>%
+  auk_filter(f_ebd,overwrite=T, keep = colsE) %>%
+  read_ebd()
+```
+
+Then, just for the sake of double check and organization, we can remove the observations without count estimation, add distance $0$ to stationary protocols, modify the time of observations started to decimal and round hour sampling to an integer, extract year, month, week, and day_of_year. Also, we can confirm and filter out by effort, such as observers $≤10$, distance $≤5 \text{ km}$, duration $≤5 \text{ hours}$, and only records with abundance estimation.
+
+```{r eval=F}
+#Some effort extraction and confirmation
+eff <- ebd_filt %>%
+  mutate(
+    # I don't want here count in 'X', to convert to NA
+    observation_count = as.integer(observation_count),
+    # effort_distance_km to 0 for non-travelling counts
+    effort_distance_km = if_else(protocol_type == "Stationary",
+                                 0, effort_distance_km),
+    # convert time to decimal hours since midnight
+    time_observations_started = time_to_decimal(time_observations_started),
+    hour_sampling = round(time_observations_started, 0),
+    # split date into year, month, week, and day of year
+    year = year(observation_date),
+    month = month(observation_date),
+    week = week(observation_date),
+    day_of_year = yday(observation_date)) %>%
+  filter(number_observers <= 10,         #Only list with less than 10 observers
+         effort_distance_km <= 5,        #be sure of distance effort
+         duration_minutes %in% (0:300),  #be sure of duration effort
+         !is.na(observation_count))      #only records with abundance estimation
+```
+
+Now we can add a new variable that identify each cell from a grid of hexagons (spatial sampling units).
+
+```{r eval=F}
+#add a new variable that identify cell, and have the maximum count per day per cell
+SnailKite <- eff %>%
+  mutate(cell = dgGEO_to_SEQNUM(dggs_pop, #id for cells
+                                longitude, latitude)$seqnum) %>%
+  group_by(cell, year, month, week, day_of_year) %>%
+  mutate(max_count = max(observation_count, na.rm = T), 
+         n_lists = n())
+```
+
+This file will serve to generate a map figure with the sampling effort after filtering the eBird data following best practices (see Johnston *et al.*, *Div & Dist* 2021).
+
+Now is time to generate our time-series. First we check the number of sampling events in eBird (checklists) in each spatial sampling unit (cell). For this species, we focused on the sampling unit with higher number of checklists, which correspond to the Payne's Prairie State Park wetland system in Alachua County. For this locality, we filter the data since its establishment after 2017, and organize a consecutive vector of the `Time.t`, that represent each day (e.g., the first day of detection is named $1$).
+
+```{r eval=F}
+#Generate the time-series for the cell with more records
+SnailKiteCountsDay <- SnailKite |>
+  ungroup() |>
+  group_by(cell) |>
+  mutate(n_checklists = n()) |>
+  ungroup() |>
+  filter(n_checklists == max(n_checklists),
+         year %in% c(2018:2024)) |>
+  mutate(Time.t = as.numeric(observation_date) - (min(as.numeric(observation_date)) - 1)) |>
+  group_by(observation_date, Time.t) |>
+  summarise(Observed.y = round(mean(max_count),0))
+```
+
+And we can save this as an outcome for backup.
+
+```{r eval=F}
+saveRDS(SnailKiteCountsDay, "Abundance_data_Outcome/SnailKiteHighCountsDay.rds")
+```
+
+This example is special, because it was established in 2018 in this locality, thus we require a nonstationary estimation (Dennis & Ponciano, *Ecology* 2014). The maximum likelihood estimation for the nonstationary case uses the multivariate normal log-likelihood: $$
+\log{L}(\mu, \theta, \beta^2, \tau^2) = -\frac{q+1}{2}\log(2\pi)-\frac{1}{2}\log(|\mathbf{V}|)-\frac{1}{2}(\mathbf{y}-\mathbf{m})^T\mathbf{V}^{-1}(\mathbf{y}-\mathbf{m})
+$$ Where $\mu$, $\theta$, $\beta^2$, and $\tau^2$ correspond to the unknown parameters for the OUSS model (see main text and Dennis & Ponciano, *Ecology* 2014), $q+1$ the length of the vector of time series of log observed abundances $\mathbf{y}=y_{0}, y_{1}, y_{2}, ..., y_{q}$, the mean vector $\mathbf{m}$ with all $q+1$ elements given the nonstationary distribution $E[Y(t_{i})]=\mu-(\mu-x_{0})\exp(-\theta t_{i})$, and $\mathbf{V}$ is the variance matrix from $V[Y(t_{i})]=\frac{\beta^2}{2\theta}(1-\exp(-2\theta t_{i}))+\tau^2$. Thus, this log-likelihood must be numerically maximized for the five unknown parameters: the four parameters already mentioned ($\mu$, $\theta$, $\beta^2$, $\tau^2$) and $x_{0}$ (the initial population).
+
+```{r eval=F}
+
+```
