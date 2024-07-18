@@ -32,6 +32,11 @@ The code will require some packages. If you do not have these packages, please i
   library(maps); 
 #composite figure
   library(gridExtra); 
+
+#package under development
+library(devtools);
+install_github("OACColombia/rouss");
+library(rouss);
 ```
 
 
@@ -177,13 +182,13 @@ negloglike_egss_mle <- function(yt,tt,fguess_egss){
 	  yt            <- matrix(yt,nrow=qp1,ncol=1); # makes data a matrix object
 	  vx            <- matrix(0,qp1,qp1);
 	for(i in 1:q){ 
-		vx[((i+1):qp1),((i+1):qp1)] <- matrix(1,(qp1-i),(qp1-i))*tt[(i+1)];
+		vx[((i+1):qp1),((i+1):qp1)] <- matrix(1,(qp1-i),(qp1-i))*tt1[(i+1)];
 	}
 	  Sigma.mat     <- sigmasq*vx;
 	  Itausq        <- matrix(rep(0,(qp1*qp1)), nrow=qp1, ncol=qp1);
 	  diag(Itausq)  <- rep(tausq,qp1);
 	  V             <- Sigma.mat + Itausq;
-	  theta.vec     <- matrix((xo+theta*tt), nrow=qp1,ncol=1);
+	  theta.vec     <- matrix((xo+theta*tt1), nrow=qp1,ncol=1);
 	
 	return((qp1/2)*log(2*pi) + 0.5*log(det(V)) + 0.5*(t(yt-theta.vec)%*%ginv(V)%*%(yt-theta.vec)))	
 }
@@ -224,7 +229,72 @@ egss_mle <- function(yt,tt,fguess_egss){
 }
 ```
 
-## 3.3. OUSS-MLE
+## 3.3. EGSS-REMLE (Some problems)
+
+From ***H_O***. The numerical optimization for the REMLEs in `R` is:
+
+```{r}
+negloglike_egss_remle <- function(yt,tt,fguess_egss){
+	
+    #theta         <- fguess_egss[1];
+	  sigmasq       <- exp(fguess_egss[2]);
+	  tausq         <- exp(fguess_egss[3]);
+	  #xo            <- fguess_egss[4];
+	  q             <- length(yt) - 1;
+	  qp1           <- q+1;
+	  vx            <- matrix(0,qp1,qp1);
+	  for(i in 1:q){ 
+		  vx[(i+1):qp1,(i+1):qp1] <- matrix(1,(qp1-i),(qp1-i))*tt1[i+1];
+	  }
+	  Sigma.mat     <- sigmasq*vx;
+	  Itausq        <- matrix(rep(0,(qp1*qp1)), nrow=qp1, ncol=qp1);
+	  diag(Itausq)  <- rep(tausq,qp1);
+	  V             <- Sigma.mat + Itausq;
+	  ss=tt[2:qp1]-tt[1:q]; 
+	  D1mat=cbind(-diag(1/ss),matrix(0,q,1))+cbind(matrix(0,q,1),diag(1/ss));
+	  D2mat=cbind(-diag(1,q-1),matrix(0,q-1,1)) + cbind(matrix(0,q-1,1),diag(1,q-1));
+	  Phi.mat=D2mat%*%D1mat%*%V%*%t(D1mat)%*%t(D2mat); 
+	  wt=(yt[2:qp1]-yt[1:q])/ss; 
+	  ut=wt[2:q]-wt[1:q-1]; 
+	  ofn=((qp1)/2)*log(2*pi)+(0.5*log(det(Phi.mat))) + (0.5*(ut%*%ginv(Phi.mat)%*%ut)); 
+	  
+	  return(ofn)
+}
+```
+
+Now we can compute the MLE of the EGSS model with the function `egss_remle()`:
+
+```{r}
+egss_remle <- function(yt,tt,fguess_egss){
+	
+  # Time-vector starting in 0.
+    t.i         <- tt-tt[1];
+  # Number of time-series transitions
+    q           <- length(t.i)-1;
+  # length of time-series
+    qp1         <- q+1;
+  # initial guesses (r as estimated, sigmasq and tausq at log scale (?), x0 as estimated)
+    guess.optim <- c(log(fguess_egss[2:3])) 
+  # numerical optimization
+    optim.out   <- optim(par=guess.optim, 
+	                   fn=negloglike_egss_remle, 
+	                   method="Nelder-Mead", 
+	                   yt=yt, 
+	                   tt=t.i)
+  #Extract MLEs and AIC
+    remles        <- c(exp(optim.out$par[2:3]))
+    lnL.hat     <- - optim.out$value[1]
+    AIC         <- -2*lnL.hat + 2*2 #where 2 = length(REMLEs)... 
+	
+    out         <- list(remles=remles, 
+                        lnL.hat = lnL.hat, 
+                        AIC=AIC)
+	return(out)
+}
+```
+
+
+## 3.4. OUSS-MLE
 
 The deterministic discrete-time GSS model is defined as 
 
@@ -448,7 +518,7 @@ ouss_mle <- function(yt,tt,fguess){
 }
 ```
 
-## 3.4. OUSS-REMLE
+## 3.5. OUSS-REMLE
 
 The restricted maximum likelihood estimation (REMLE) eliminates the parameter of the mean vector ($\mu$) and leave only parameters in the variance-covariance matrix (***DP_E***). This has better statistical properties than MLE for the GSS and EGSS models. The multivariate normal log-likelihood for the REMLE stationary OUSS model is given by (**Eq. 22** in ***DP_E***)
 
@@ -582,7 +652,7 @@ ouss_remle <- function(yt, tt, fguess){
 }
 ```
 
-## 3.5. OUSS-MLE - Nonstationary
+## 3.6. OUSS-MLE - Nonstationary
 
 For populations experiencing transient growth phases, we can not assume that the first observations arise from stationary distributions (*e.g.*, during colonization of new areas, translocations, or recovery after catastrophic events). We can apply the multivariate normal log-likelihood, but the element in the mean vector $\mathbf{m}$ correspond to the data value $y_i$ (from the infinitesimal Itô trasnformation) given by $E[Y(t_i)] = \mu-(\mu-x_0)\exp(-\theta t_i)$ (***Eq. 13*** in ***DP_E***) instead of $E[Y(t_i)] = \mu$ (***Eq. 16*** in ***DP_E***), here we denote this new vector $\mathbf{u}$. In addition, the variance is $V[Y(t_i)]=\frac{\beta^2}{2\theta}(1-\exp(-2\theta t_i))+\tau^2$ (***Eq. 14*** in ***DP_E***) instead of $V[Y(t_i)]=\frac{\beta^2}{2\theta}+\tau^2$ (***Eq. 17*** in ***DP_E***). The log-likelihood must be numerically maximized jointly for the five unknown parameters: $\mu$ (the trend parameters for the log-abundance mean, no stationary), $\theta$ (rate to approach to stationarity), $\beta^2$ (variability of process noise), $\tau^2$ (variability of sampling), and $x_0$ (the initial population, named $\beta$ by ***H_O***).
 
@@ -764,11 +834,11 @@ $$
 $$
 
 
-## 3.6. Parametric bootstrap functions
+## 3.7. Parametric bootstrap functions
 
 The parametric bootstrapping provide confidence intervals of the parameters. ***DP_E*** recommended 2000 simulations or more. In addition, this technique allows predict values in missing times of the time-series. More relevant, we can simulate trends from fitted SS models of different versions for conducting risk-based population viability monitoring (VPM). We will require the following functions:
 
-### 3.6.1. Multivariate Normal random number generator
+### 3.7.1. Multivariate Normal random number generator
 
 To generate random numbers from a multivariate normal distribution. It requires: 
 1. `n` = the number of random samples of a multivariate normal vector 
@@ -797,7 +867,7 @@ randmvn <- function(n, mu.vec, cov.mat){
 }
 ```
 
-### 3.6.2. Simulation functions
+### 3.7.2. Simulation functions
 
 To simulate ≥2000 data sets for EGSS, OUSS.St, and OUSS.NoSt models fitted. First, lets do EGSS, which requires:
 
@@ -935,17 +1005,17 @@ ouss_sim_NoSt <- function(nsims,tt,parms){
 }
 ```
 
-### 3.6.3. Predicted trajectory of unobserved process (OAC - Only OUSS.St)
+### 3.7.3. Predicted trajectory of unobserved process (OAC - Only OUSS.St)
 
 This function(s) will predict the trajectory of unobserved process (abundance).
 
-##### EGSS predicted trajectory (NOT READY, yet)
+##### EGSS predicted trajectory (Almost there, not yet)
 
 For EGSS it requires (in theory... **NOT READY**, yet):
 
 1.  A vector of time-series of log-observed abundances `yt` ($\mathbf{y}$)
 2.  A vector of observation times `tt`
-3.  A vector of parameters values estimated from `EGSS.MLE()` ($\hat{\theta}$, $\hat{\sigma^2}$, $\hat{\tau^2}$, $\hat{x_0}$) 
+3.  A vector of parameters values estimated from `eggs_mle()` ($\hat{\theta}$, $\hat{\sigma^2}$, $\hat{\tau^2}$, $\hat{x_0}$) 
 
 ```{r eval=F}
 egss_predict <- function(yt,tt,parms){
@@ -990,13 +1060,13 @@ egss_predict <- function(yt,tt,parms){
 	j1=matrix(1,q,1); 
 	V1inv=ginv(V1mat);
 	
-	theta.mle=(t(j1)%*%V1inv%*%W.t)/(t(j1)%*%V1inv%*%j1); 
+	theta.remle=(t(j1)%*%V1inv%*%W.t)/(t(j1)%*%V1inv%*%j1); 
 	j=matrix(1,qp1,1); 
 	Vinv=ginv(V);
-	x0.mle=(t(j)%*%Vinv%*%(yt-c(theta.mle)*t.i))/(t(j)%*%Vinv%*%j);
-	Var_theta.mle=1/(t(j1)%*%V1inv%*%j1); # Variance of mu 
-	theta_hi.mle=theta.mle+1.96*sqrt(Var_theta.mle); # 95% CI for mu 
-	theta_lo.mle=theta.mle-1.96*sqrt(Var_theta.mle)
+	x0.remle=(t(j)%*%Vinv%*%(yt-c(theta.remle)*t.i))/(t(j)%*%Vinv%*%j);
+	Var_theta.remle=1/(t(j1)%*%V1inv%*%j1); # Variance of theta 
+	theta_hi.remle=theta.remle+1.96*sqrt(Var_theta.remle); # 95% CI for theta 
+	theta_lo.remle=theta.remle-1.96*sqrt(Var_theta.remle)
 	
 	#Calculate estimated population size for EGSS model
 	
@@ -1016,7 +1086,8 @@ egss_predict <- function(yt,tt,parms){
 	# see equation 54 in Dennis et al. (2006).
 	
 	Predict.t=exp(m+((v-tausq)/v)*(yt-m));
-
+	
+	return(data.frame(Time.t = tt, REMLE = Predict.t, Observed.y = exp(yt)))
 }
 ```
 
@@ -1139,6 +1210,17 @@ and other with data removed:
 #a vector of parameters
 REMLEstimates.ouss.gap <- ouss_remle(yt = yt2, tt = tt2, guess_ouss(yt = yt2, tt = tt2))
 ouss_predict(yt = yt2, tt = tt2, REMLEstimates.ouss.gap$remles, plot.it = T)
+
+REMLEstimates.egss.gap <- egss_mle(yt = yt2, tt = tt2, guess_egss(yt = yt2, tt = tt2))
+predicted.egss <- egss_predict(yt = yt2, tt = tt2, REMLEstimates.egss.gap$mles)
+
+ggplot(predicted.egss, aes(x = Time, y = Observed))+
+  geom_line(color = "blue")+
+  geom_point(color = "blue")+
+  theme_classic() + 
+  geom_line(aes(y = REMLE), color = "red")+
+  geom_point(aes(y = REMLE), color = "red")
+
 ```
 
 Even with absent of some values, it follows the trajectory. Still, we need confidence intervals (`ouss_pboot()`, below) to be sure the MLE is within the stationary distribution.
@@ -1246,7 +1328,7 @@ ouss_predict_NoSt <- function(yt,tt,parms, plot.it="TRUE"){
 ```
 
 
-### 3.6.4. Parametric bootstrapping (OAC - Only OUSS stationary)
+### 3.7.4. Parametric bootstrapping (OAC - Only OUSS stationary)
 
 Finally, we will estimate CI. For now only with the OUSS. It requires: 
 
@@ -1420,7 +1502,7 @@ A little test
 ouss_pboot(B = 100, yt = yt2, tt = tt2, parms = REMLEstimates.ouss.gap$remles, REMLE = TRUE, plot.it = TRUE)
 ```
 
-### 3.6.5. A function to run the estimation, compute the predictions and run a parametric bootstrap
+### 3.7.5. A function to run the estimation, compute the predictions and run a parametric bootstrap
 
 With a single function (`ouss_calc()`), we can run estimation, compute predictions, and run parametric bootstrap
 
@@ -2104,7 +2186,7 @@ Then, just for the sake of double check and organization, we can remove the obse
 
 ```{r eval=F}
 #Some effort extraction and confirmation
-eff <- ebd_filt %>%
+ebd_filt <- ebd_filt %>%
   mutate(
     # I don't want here count in 'X', to convert to NA
     observation_count = as.integer(observation_count),
@@ -2128,53 +2210,440 @@ eff <- ebd_filt %>%
 Now we can add a new variable that identify each cell from a grid of hexagons (spatial sampling units).
 
 ```{r eval=F}
-#add a new variable that identify cell, and have the maximum count per day per cell
-SnailKite <- eff %>%
+#add a new variable that identify cell, and have the maximum count per week per cell
+SnailKite <- ebd_filt %>%
   mutate(cell = dgGEO_to_SEQNUM(dggs_pop, #id for cells
                                 longitude, latitude)$seqnum) %>%
-  group_by(cell, year, month, week, day_of_year) %>%
+  group_by(cell, year, month, week) %>%
   mutate(max_count = max(observation_count, na.rm = T), 
-         n_lists = n())
+         n_lists = n()) |>
+  ungroup()
+
+CellTop <- SnailKite |>
+  group_by(cell) |>
+  mutate(n_checklists = n()) |>
+  ungroup() |>
+  filter(n_checklists == max(n_checklists)) |>
+  select(cell) |>
+  unique()
+
+```
+
+And we adjust time-series from the 1st week of 2018 (January) to the 22nd of 2024 (May). Since 2018, Snail kites reached more than 1000 records (actually, more than 800). In addition, in 2018 was the species established in Paynes' Prairie. We extract the high count per week
+
+```{r}
+hist(SnailKite$year, breaks = 50, main = "Florida Snail kites, checklists per year", xlab = "Year")
+abline(h = 1000, v = 2017, col = "red")
+
+snailkites.week <- SnailKite |>
+  filter(observation_date >= "2018-01-01") |>
+  mutate(Time.t = case_when(year == 2018 ~ week,
+                            year > 2018 ~ week+(52*(year-2018)))) #|> View()
+  
+snailkites.week.counts <- snailkites.week |>
+  group_by(cell, Time.t) |>
+  summarise(Observed.y = round(max(max_count),0))
+
 ```
 
 And we can save this as an outcome for backup.
 
 ```{r eval=F}
 saveRDS(SnailKite, "data_tmp/SnailKiteCellsID_filtered.rds")
+saveRDS(snailkites.week, "data_tmp/SnailKiteCellsWeek.rds")
+saveRDS(snailkites.week.counts, "data_tmp/SnailKiteCellsCountsWeek.rds")
 ```
-
 
 This file will serve to generate a map figure with the sampling effort after filtering the eBird data following best practices (see Johnston *et al.*, *Div & Dist* 2021).
 
-Now is time to generate our time-series. First we check the number of sampling events in eBird (checklists) in each spatial sampling unit (cell). For this species, we focused on the sampling unit with higher number of checklists, which correspond to the Payne's Prairie State Park wetland system in Alachua County. For this locality, we filter the data since its establishment after 2017, and organize a consecutive vector of the `Time.t`, that represent each day (e.g., the first day of detection is named $1$).
+Now we focused on the sampling unit with higher number of checklists, which correspond to the Payne's Prairie State Park wetland system in Alachua County. For this locality, we also have counts published from Poli *et.al.* (2020).
 
 ```{r eval=F}
+#The monitoring data by Poly et al. (2020)
+Poli.etal <- data.frame(observation.date = c("2018-02-19",
+                                             "2018-03-11",
+                                             "2018-04-08",
+                                             "2018-05-13",
+                                             "2018-05-31",
+                                             "2018-06-08",
+                                             "2018-07-15",
+                                             "2018-08-07",
+                                             "2018-08-22",
+                                             "2018-09-01",
+                                             "2018-10-15",
+                                             "2018-12-16"),
+                        Time.t = c(8, 10, 14, 19, 22, 23, 29, 32, 34, 35, 42, 50),
+                        abundance.monitored = c(1,2,4,1,6,8,6,6,12,9,7,29))
+
 #Generate the time-series for the cell with more records
-SnailKiteCountsDay <- SnailKite |>
-  ungroup() |>
-  group_by(cell) |>
-  mutate(n_checklists = n()) |>
-  ungroup() |>
-  filter(n_checklists == max(n_checklists),
-         year %in% c(2018:2024)) |>
-  mutate(Time.t = as.numeric(observation_date) - (min(as.numeric(observation_date)) - 1)) |>
-  group_by(observation_date, Time.t) |>
-  summarise(Observed.y = round(mean(max_count),0))
+snailkites.paynesp <- snailkites.week.counts |>
+  filter(cell == CellTop$cell)
+
+#Add Poli data
+snailkites.paynesp <- snailkites.paynesp |>
+  left_join(select(Poli.etal, c(Time.t,abundance.monitored)))
+
 ```
 
-And we can save this as an outcome for backup.
-
-```{r eval=F}
-saveRDS(SnailKiteCountsDay, "data_tmp/SnailKiteHighCountsDay.rds")
-```
-
-Let see if we can fit a REMLE OUSS for this population
+We will fit an EGSS model for the first two years (weeks from 1 to 104)
 
 ```{r}
-snailkites.ouss.remle <- ouss_calc(yt = log(SnailKiteCountsDay$Observed.y),
-                           tt = SnailKiteCountsDay$Time.t,
-                           pmethod = "REML",
-                           nboot = 10,
-                           plot.pred = F,
-                           plot.bootdists = T)
+
+snailkites.paynesp.init <- snailkites.paynesp |>
+  filter(Time.t %in% c(1:104))
+
 ```
+
+Lets fit a first EGSS model
+```{r}
+
+snailkites.egss.parms <- egss_mle(yt = log(snailkites.paynesp.init$Observed.y),
+                                  tt = snailkites.paynesp.init$Time.t,
+                                  fguess_egss = guess_egss(log(snailkites.paynesp.init$Observed.y),
+                                                           snailkites.paynesp.init$Time.t))
+
+snailkites.egss.predict <- egss_predict(yt = log(snailkites.paynesp.init$Observed.y),
+                                        tt = snailkites.paynesp.init$Time.t,
+                                        parms = snailkites.egss.parms$mles)
+
+#To return dates
+datesPP <- snailkites.week |> 
+  group_by(Time.t) |> 
+  summarise(observation_date = min(observation_date))
+
+snailkites.egss.predict <- snailkites.egss.predict |>
+  left_join(snailkites.paynesp.init) |>
+  left_join(datesPP)
+
+plot(x = snailkites.egss.predict$observation_date,
+     y = snailkites.egss.predict$Observed.y,
+     type = "b", cex.lab=1.25, col = "blue", pch = 1,
+     ylab = "Population abundance",
+     xlab = "Observation date (weeks)")
+points(x = snailkites.egss.predict$observation_date,
+     y = snailkites.egss.predict$REMLE,
+     type = "b", col = "darkred", pch = 2)
+points(x = snailkites.egss.predict$observation_date,
+     y = snailkites.egss.predict$abundance.monitored,
+     type = "p", col = "black", pch = 19)
+legend("topleft", legend=c("Observed eBird", "Predicted EGSS - REMLE", "Standardized Monitored"),
+       col=c("blue","darkred", "black"), lty=c(1,1,NA), pch = c(1,2,19), cex=0.8)
+
+#or
+  
+ggplot(snailkites.egss.predict, aes(x = observation_date, y = Observed.y))+
+  geom_line(color = "blue", alpha = 0.5)+
+  geom_point(color = "blue", shape = 21, alpha = 0.5)+
+  geom_line(aes(y = REMLE), color = "red", alpha = 0.5)+
+  geom_point(aes(y = REMLE), color = "red", shape = 21, alpha = 0.5)+
+  geom_line(aes(y = abundance.monitored), color = "black", alpha = 0.5)+
+  geom_point(aes(y = abundance.monitored), color = "black")+
+  labs(x = "Observation date",
+       y = "Population abundance")+
+  theme_classic()
+
+```
+
+How much is the prediction out of the estimation?
+```{r}
+
+factor_underestimation <- lm(REMLE~abundance.monitored, data = snailkites.egss.predict)
+
+plot(x = snailkites.egss.predict$abundance.monitored,
+     y = snailkites.egss.predict$REMLE,
+     xlim=c(0,30), ylim=c(0,30), type = "p", col = "black", pch = 19,
+     ylab = "Abundance observed (Standardized methods)",
+     xlab = "Abundance estimated (REMLE - EGSS)")
+abline(coef = c(0,1))
+abline(factor_underestimation, col = "darkred")
+
+## rounded coefficients for better output
+cf <- round(coef(factor_underestimation), 2) 
+
+## sign check to avoid having plus followed by minus for negative coefficients
+eq <- paste0("Observed = ", cf[1],
+             ifelse(sign(cf[2])==1, "+", "-"), abs(cf[2]), "(Predicted)")
+
+## printing of the equation
+mtext(eq, 3, line=-16.5, col = "darkred")
+
+```
+
+With the estimated model parameters and the data up to the first 2 years (95 weeks with observation), the probability that the population will crash below a critical threshold ($N_{critical}$, as the critical number of individuals) is estimated for the next two years (104 weeks). Let assume this $N_{critical} = 1/2 (\exp\bar{(y)})$. The resulting probability is recorded.
+
+```{r}
+#variables:
+tt <- snailkites.paynesp$Time.t
+yt <- log(snailkites.paynesp$Observed.y)
+last.tt <- length(snailkites.paynesp.init$Time.t)
+
+#Define N_critical
+N.critical = (1/2)*mean(exp(yt))
+
+#number of simulations
+ntraj = 1000
+
+#threshold times
+thres.times <- 0:104
+
+#Maximum simulation length
+len.sim <- max(thres.times)+1
+
+#last observed time
+m = last(tt[1:last.tt])
+
+#plot the abundance data
+plot(tt[1:last.tt], 
+     exp(yt[1:last.tt]), 
+     type="b", lwd=2, cex.lab=1.25, col = "blue",
+     xlim=c(min(tt),max(tt)),
+     ylim=c(0,90), 
+     ylab="Population abundance", xlab="Time (week since 2018-01-01)")
+points(x = snailkites.egss.predict$Time.t,
+     y = snailkites.egss.predict$REMLE,
+     type = "b", col = "darkred", pch = 2)
+points(x = snailkites.egss.predict$Time.t,
+     y = snailkites.egss.predict$abundance.monitored,
+     type = "p", col = "black", pch = 19)
+legend("topleft", legend=c("Observed eBird", 
+                           "Predicted EGSS - REMLE", 
+                           "Standardized Monitored",
+                           "Projected above threshold",
+                           "Projected below threshold"
+                           ),
+       col=c("blue","darkred", "black","#d3d3d398","#FF000098"
+             ), 
+       lty=c(1,2,NA,1,1
+             ), pch = c(1,1,19,NA,NA
+                        ), cex=0.8)
+
+#initiating array to store last points of simulation at time m+5
+last.points <- rep(0,ntraj)
+
+#simulate population 100 trends 
+for(j in 1:ntraj){
+  sim.mat <- egss_sim(1,
+                      tt = thres.times,
+                      parms = snailkites.egss.parms$mles)
+  Pop.sim <- exp(c(yt[last.tt], sim.mat[-1]))
+  
+  if(Pop.sim[len.sim]>=N.critical){
+    lines(m+thres.times, Pop.sim, col="#d3d3d318", lty = "solid")
+  }else{lines(m+thres.times, Pop.sim, col="#FF000018", lty = "solid")}
+  
+  last.points[j] <- Pop.sim[len.sim]
+}
+
+#add critical value line
+abline(h=N.critical, lty=2, lwd=1)	
+
+#How many of the simulations (ntraj) end below N_critical? Probability of extinction
+P.ext <- length(which(round(last.points,2) <= N.critical))/ntraj
+
+title(main=paste0("EGSS - P(ext risk) = ", signif(P.ext, digits=2)), cex=1.5)
+
+```
+
+Now, we can add the next observation (week 262; fist week of January 2020) to the time-series, and the model parameters are re-estimated as well as the probability of crashing below the $N_{critical}$ for the next two years (104 weeks). For this week, we will try to fit a OUSS as well, and decide by the density dependence parameter
+
+
+```{r}
+last.tt <- last.tt+1
+
+yt[1:last.tt] #It was already converted to the log-abundance
+tt[1:last.tt]
+
+
+OUSS.partial <- ouss_remle(yt = yt[1:last.tt],
+                           tt = tt[1:last.tt],
+                           fguess = guess_ouss(yt = yt[1:last.tt],
+                                               tt = tt[1:last.tt]))
+
+OUSS.partial$remles 
+
+model <- if(OUSS.partial$remles[2] < 0.025){"EGSS"}else{"OUSS"}
+
+EGSS.partial <- egss_mle(yt = yt[1:last.tt], 
+                         tt = tt[1:last.tt],
+                         fguess_egss = guess_egss(yt = yt[1:last.tt],
+                                                  tt = tt[1:last.tt]))
+snailkites.egss.predict1 <- egss_predict(yt = yt[1:last.tt],
+                                         tt = tt[1:last.tt],
+                                         parms = EGSS.partial$mles)
+
+#N.critical, len.sim, and ntraj were already correct
+  #but m changes
+
+m = last(tt[1:last.tt])
+#plot the abundance data
+plot(tt[1:last.tt], 
+     exp(yt[1:last.tt]), 
+     type="b", lwd=2, cex.lab=1.25, col = "blue",
+     xlim=c(min(tt),max(tt)),
+     ylim=c(0,90), 
+     ylab="Population abundance", xlab="Time (week since 2018-01-01)")
+points(x = snailkites.egss.predict1$Time.t,
+     y = snailkites.egss.predict1$REMLE,
+     type = "b", col = "darkred", pch = 2)
+legend("topleft", legend=c("Observed eBird", 
+                           "Predicted EGSS - REMLE", 
+                           "Projected above threshold",
+                           "Projected below threshold"
+                           ),
+       col=c("blue","darkred","#d3d3d398","#FF000098"
+             ), 
+       lty=c(1,2,1,1
+             ), pch = c(1,1,NA,NA
+                        ), cex=0.8)
+
+last.points <- rep(0,ntraj)
+#simulate population 100 trends 
+for(j in 1:ntraj){
+  sim.mat <- egss_sim(1,
+                      tt = thres.times,
+                      parms = EGSS.partial$mles)
+  Pop.sim <- exp(c(yt[last.tt], sim.mat[-1]))
+  
+  if(Pop.sim[len.sim]>=N.critical){
+    lines(m+thres.times, Pop.sim, col="#d3d3d318", lty = "solid")
+  }else{lines(m+thres.times, Pop.sim, col="#FF000018", lty = "solid")}
+  
+  last.points[j] <- Pop.sim[len.sim]
+}
+
+#add critical value line
+abline(h=N.critical, lty=2, lwd=1)	
+
+#How many of the simulations (ntraj) end below N_critical? Probability of extinction
+P.ext <- length(which(round(last.points,2) <= N.critical))/ntraj
+
+title(main=paste0("EGSS - P(ext risk) = ", signif(P.ext, digits=2)), cex=1.5)
+
+```
+
+
+Iterating this process, for instance nine moments every 6 months (26 weeks):
+
+```{r}
+
+N.critical <- 1/2*mean(snailkites.paynesp$Observed.y);
+
+ntraj = 1000
+
+#A vector of time steps to evaluate
+  last.tt <- seq(95,300, 25)
+
+#array to store p.below critical point (last point < N.critical/ntraj)
+  probability.ext1 <- rep(0,length(last.tt))
+
+  par(mfrow=c(3,3),mar=c(3,3,3,1),  oma=c(2,2,2,1), mgp=c(2,0.5,0))
+
+  for(t in last.tt){
+    plot(tt[1:t],
+         exp(yt[1:t]),
+         type="b", lwd=2, cex.lab=1.25, col = "blue",
+         xlim=c(min(tt),max(tt)),
+         ylim=c(0,90),
+         ylab="Population abundance", xlab="Time (week since 2018-01-01)")
+  
+    last.points <- rep(0,ntraj)
+
+    OUSS.partial <- ouss_remle(yt = yt[1:t],
+                               tt = tt[1:t],
+                               fguess = guess_ouss(yt = yt[1:t],
+                                                   tt = tt[1:t]))
+
+    model <- if(OUSS.partial$remles[2] < 0.025){
+      "EGSS"
+        }else{
+          "OUSS"
+          }
+  
+    if(model == "OUSS"){
+      parcial.predict <- ouss_predict(yt = yt[1:t],
+                                      tt = tt[1:t],
+                                      parms = OUSS.partial$remles,
+                                      plot.it = F)
+      
+      parcial.predict <- as.data.frame(parcial.predict[1])
+      
+      points(x = parcial.predict$tt,
+             y = parcial.predict$Predict.t,
+             type = "b", col = "darkred", pch = 2)
+      
+      for(j in 1:ntraj){
+        sim.mat <- ouss_sim(1,
+                            tt = thres.times,
+                            parms = OUSS.partial$remles)
+      
+      Pop.sim <- exp(c(yt[t], sim.mat[-1]))
+  
+        if(Pop.sim[len.sim]>=N.critical){
+          lines(tt[t]+thres.times, Pop.sim, col="#d3d3d318", lty = "solid")
+        }else{
+          lines(tt[t]+thres.times, Pop.sim, col="#FF000018", lty = "solid")}
+  
+      last.points[j] <- Pop.sim[len.sim]
+      }
+      
+      abline(h=N.critical, lty=2, lwd=1)	
+      
+      probability.ext1[t] <- length(which(round(last.points,2) <= N.critical))/ntraj
+      
+      title(main=paste0(tt[t], " - ", model, " - P(ext risk) = ", signif(probability.ext1[t], digits=2)), cex=1.5)}
+  
+    else{
+      
+      EGSS.partial <- egss_mle(yt = yt[1:t],
+                           tt = tt[1:t],
+                           fguess_egss = guess_egss(yt = yt[1:t],
+                                               tt = tt[1:t]))
+    
+      parcial.predict <- egss_predict(yt = yt[1:t],
+                                      tt = tt[1:t],
+                                      parms = EGSS.partial$mles)
+      
+      points(x = parcial.predict$Time.t,
+             y = parcial.predict$REMLE,
+             type = "b", col = "darkred", pch = 2)
+      
+    for(j in 1:ntraj){
+    
+      sim.mat <- egss_sim(1,
+                          tt = thres.times,
+                          parms = EGSS.partial$mles)
+      Pop.sim <- exp(c(yt[t], sim.mat[-1]))
+  
+        if(Pop.sim[len.sim]>=N.critical){
+          lines(tt[t]+thres.times, Pop.sim, col="#d3d3d318", lty = "solid")
+        }else{
+          lines(tt[t]+thres.times, Pop.sim, col="#FF000018", lty = "solid")}
+  
+      last.points[j] <- Pop.sim[len.sim]
+      }
+      
+      abline(h=N.critical, lty=2, lwd=1)	
+      
+      probability.ext1[t] <- length(which(round(last.points,2) <= N.critical))/ntraj
+      
+      title(main=paste0(tt[t], " - ", model, " - P(ext risk) = ", signif(probability.ext1[t], digits=2)), cex=1.5)}
+
+}
+
+par(mfrow=c(1,1))
+
+plot(probability.ext1, 
+     xlim=c(min(tt),max(tt)),
+     type = "b", ylim = c(0,1), 
+     ylab = "Probability of extinction risk", 
+     xlab = "Time (week since 2018-01-01)")
+```
+
+Let iterates for each time period
+
+```{r}
+snailkites.pp.pvm <- vpm(yt, tt, ntraj = 1000, N.critical = N.critical, plt = 104)
+
+saveRDS(snailkites.pp.pvm, "SnailKites_PaynesPrairie_PVM.rds")
+```
+
