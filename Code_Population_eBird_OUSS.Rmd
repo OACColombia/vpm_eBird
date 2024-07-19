@@ -7,21 +7,31 @@ editor_options:
   chunk_output_type: console
 ---
 
-# 1. Read me (begin here)
+# Read me (begin here)
 
-This file is the code used for analysis of a paper to be submitted to ***Methods in Ecology and Evolution*** as a *Practical tool*. Thus, we hope this program is applied for different users in an intuitive and "practical" way. We focused on community science data of birds from the [eBird](https://ebird.org/home) platform, with an example that have long-term monitoring efforts to understand population dynamics, the Snail Kite in Florida [*Rostrhamus sociabilis*](https://birdsoftheworld.org/bow/species/snakit/cur/introduction) (see *5. Prepare the data from eBird and time-series vectors*). With this example, first, we adjust the data to run an Ornstein-Uhlenbeck State-Space models (OUSS), a continuous version of the discrete-time equal sampling Gompertz State-Space model, including Maximum Likelihood Estimation (MLE) and Restricted Maximum Likelihood Estimation (later recommended). The statistical properties for our proceedings are based on Dennis *et al.* (**Ecol Monogr**, 1991; hereafter ***D_91EM***), Dennis *et al.* (**Ecol Monogr**, 2006; hereafter ***D_06EM***), Dennis & Ponciano (**Ecology**, 2014; ***DP_E***), Humbert *et al.* (**Oikos**, 2009; ***H_O***), and reference within them. We adjusted the functions and code published as supplementary information in ***H_O*** and ***DP_E*** (`rouss`). Finally, we applied a risk-based viable population monitoring framework to this community science data (see Staples *et al.* **Cons Biol**, 2005).
+This file is the code used for a paper *to be submitted* to ***Methods in Ecology and Evolution***. Thus, we hope this program is applied for different users in an intuitive and practical way. 
 
-# 2. Packages and data example
+Our aim is to provide a rapid assessment of short trends of local persistence probability ($\phi$) by incorporating population dynamics robust models (Dennis & Ponciano, 2014; Humbert *et al.*, 2009) withing the risk-based population viability monitoring framework (Staples *et al.*, 2005) using time series data from eBird. Thus, we begin by organizing eBird data records in a time series of weekly high counts estimates, filtering by best practices recommended elsewhere (Backstrom *et al*., 2024; Johnston e*t al.*, 2021; Kelling *et al.*, 2019; Strimas-Mackey *et al.*, 2023).  
+
+We focused on the community science platform [eBird](https://ebird.org/home), with an example that have long-term monitoring efforts to understand population dynamics, the Snail Kite in Florida [*Rostrhamus sociabilis*](https://birdsoftheworld.org/bow/species/snakit/cur/introduction) (see *Prepare the data from eBird and time-series vectors*). Specifically, we concentrate our analysis on the population of Snail kites in the Payne's Prairie wetland, in Alachua County, northcentral Florida. We compared our approach using eBird data with long-term standardized monitoring efforts of the species in the same locality, fitting continuous version of the discrete-time equal sampling Gompertz State-Space model: 
+
+1. The Ornstein-Uhlenbeck State-Space model (OUSS)
+2. The Exponential Growth (or decay) State Space model (EGSS)
+
+Applying a risk-based viable population monitoring framework to these data sets (see Staples *et al.*, 2005).
+
+
+The statistical properties for our proceedings are based on Dennis *et al.* (1991), Dennis *et al.* (2006), Dennis & Ponciano (2014), Humbert *et al.* (2009), and reference within them. We adjusted the functions and code published as supplementary information in Humbert *et al.* (2009) and Dennis & Ponciano (2014) (`rouss`). 
+
+# Packages
 
 The code will require some packages. If you do not have these packages, please install them before proceeding. We encourage to study each package to be familiar with their functions.
 
 ```{r message=FALSE}
 #R functions and datasets to support "Modern Applied Statistics with S", a book from W.N. Venables and B.D. Ripley
   library(MASS);
-
 #Lognormal distribution
   library(kde1d)
-
 #To conduct eBird data filtering and manipulation (see Strimas et al. 2018 and 2023)
   library(auk); 
 #To data management and visualization - sevent packages in one
@@ -34,41 +44,16 @@ The code will require some packages. If you do not have these packages, please i
   library(gridExtra); 
 
 #package under development
-library(devtools);
-install_github("OACColombia/rouss");
-library(rouss);
+#library(devtools);
+#install_github("OACColombia/rouss");
+#library(rouss);
 ```
 
+# Functions
 
-## 2.1. Data example (real and modified)
+The following functions should be available to the analysis of time-series of observation count data from eBird. Although we deploy some of their statistical properties and equations to justify their use, most information is also available in the references mentioned in the *Read me (begin here)* section.
 
-We will use same data as in ***D_EM*** and ***H_O*** (American Redstart from North American Breeding Bird Survey, record # 02014 3328 08636, 1966-95), just to test the functions. Given that the realized values of log-observation (in lower case) are $y_t$ for each $t$ (year) between 1966 and 1995 ($t_t$), we have these two vectors representing our data. In addition, we remove intentionally some observations to simulate gaps in data for stationary (`yt2` and `tt2`).
-
-```{r}
-#Discrete equal sampling - stationary
-yt1 = log(c(18, 10, 9, 14, 17, 14, 
-            5, 10, 
-            9, 5, 11, 11, 4, 5, 4, 8, 2, 3, 9, 2, 
-            4, 7, 4, 1, 
-            2, 4, 11, 11, 9, 6)) #note, there are not zeros
-tt1 = c(1966:1995)
-
-#unequal sampling (missing values) - stationary
-yt2 = log(c(18, 10, 9, 14, 17, 14,
-            #5, 10, 
-            9, 5, 11, 11, 4, 5, 4, 8, 2, 3, 9, 2, 
-            #4, 7, 4, 1, 
-            2, 4, 11, 11, 9, 6)) #note, there are not zeros
-tt2 = c(1966:1971, 
-        1974:1985,
-        1990:1995)
-```
-
-# 3. Functions
-
-The following functions should be available to the analysis of time-series of observation count data from eBird. Although we deploy some of their statistical properties and equations to justify their use, most information is also available in ***D_91EM***, ***D_06EM***, ***H_O***, and ***DP_E***.
-
-## 3.1. Convert time observation to hours since midgnight in eBird data
+## Convert time observation to hours since midgnight in eBird data
 
 ```{r}
 time_to_decimal <- function(x) {
@@ -77,9 +62,9 @@ time_to_decimal <- function(x) {
 }
 ```
 
-## 3.2. EGSS-MLE
+## EGSS-MLE
 
-The first example in any population ecology class is the exponential growth population model. This model assumes density independence and it could be of an stochastic form (see ***D_06EM*** and ***H_O***). The model is defined as the stochastic differential equation (from the Itô log-transformation):
+The first example in any population ecology class is the exponential growth population model. This model assumes density independence and it could be of an stochastic form. The model is defined as the stochastic differential equation (from the Itô log-transformation):
 
 $$
 \begin{array}{ccc}
@@ -87,7 +72,7 @@ dX(t) &=& (r-\frac{1}{2} \beta^2)dt+\beta dW(t) \\
 &=& \theta\ dt+\beta dW(t)
 \end{array}
 $$
-where $X(t) = \ln{N(t)}$, the log population abundance at time $t$, $\theta = r-\frac{1}{2}\beta^2$ is a constant of population growth rate ($\ln{\lambda}-(\frac{\sigma^2}{2})$ as in the ***Eq13*** in ***D_91EM***; named $\mu = \ln{\lambda}$ in ***H_O***), and $dW(t)$ is a random perturbation representing the environmental stochasticity or process noise (the Itô transformation of $E_t$ from GSS in ***D_06EM***), with mean $0$ and variance $\sigma^2dt$. Estimated or observed abundance $Y(t_i)$ of the logarithmic population abundance $X(t_i)$ has an observation error $F_i$ with mean $0$ and variance $\tau^2$:
+where $X(t) = \ln{N(t)}$, the log population abundance at time $t$, $\theta = r-\frac{1}{2}\beta^2$ is a constant of population growth rate ($\ln{\lambda}-(\frac{\sigma^2}{2})$ as in the ***Eq13*** in Dennis *et al.*, 1991; named $\mu = \ln{\lambda}$ in Humbert *et al.*, 2009), and $dW(t)$ is a random perturbation representing the environmental stochasticity or process noise (the Itô transformation of $E_t$ from GSS in Dennis *et al.*, 2006), with mean $0$ and variance $\sigma^2dt$. Estimated or observed abundance $Y(t_i)$ of the logarithmic population abundance $X(t_i)$ has an observation error $F_i$ with mean $0$ and variance $\tau^2$:
 
 $$
 \begin{array}{ccc}
@@ -97,15 +82,14 @@ F_i &\sim& \text{Normal}(0,\tau^2)
 $$
 
 
-EGSS have a multivariate normal log-likelihood function given by (***EqA17*** in ***H_O***):
+EGSS have a multivariate normal log-likelihood function given by (***EqA17*** in Humbert *et al.*, 2009):
 
 $$
 \ln{L}(\theta, \sigma^2, \tau^2, x_0) = -\frac{(q+1)}{2}\ln(2\pi)-\frac{1}{2}\ln(|\mathbf{V}|)-\frac{1}{2}(\mathbf{y}-\mathbf{m})'\mathbf{V}^{-1}(\mathbf{y}-\mathbf{m})
 $$
 where $q+1$ represent the length of the time-series, $\mathbf{V}$ is the variance-covariance matrix, $\mathbf{y}$ is the vector of log-abundance observations ($y_0$, $y_1$, ..., $y_q$), and $\mathbf{m}$ is the vector of means of change from $x_0$ to $x_0+\theta t_1$, to $x_0+\theta t_2$, ... $x_0+\theta t_q$.
 
-
-The four unknown parameters are: $\theta$ (trend parameter, or expected change), $\sigma^2$ (variation of the process noise), $\tau^2$ (variation of the observation noise), and $x_0$ (the unknown initial population).
+The four unknown parameters are: $\theta$ (trend parameter, or expected change under density-independence), $\sigma^2$ (variation of the process noise), $\tau^2$ (variation of the observation noise), and $x_0$ (the unknown initial population).
  
 For the numerical optimization of this multivariate normal log-likelihood, we will need three arguments:
 
@@ -229,9 +213,9 @@ egss_mle <- function(yt,tt,fguess_egss){
 }
 ```
 
-## 3.3. EGSS-REMLE (Some problems)
+## EGSS-REMLE (Some problems)
 
-From ***H_O***. The numerical optimization for the REMLEs in `R` is:
+The numerical optimization for the REMLEs in `R` is:
 
 ```{r}
 negloglike_egss_remle <- function(yt,tt,fguess_egss){
@@ -294,7 +278,7 @@ egss_remle <- function(yt,tt,fguess_egss){
 ```
 
 
-## 3.4. OUSS-MLE
+## OUSS-MLE
 
 The deterministic discrete-time GSS model is defined as 
 
@@ -348,7 +332,6 @@ v_X(x) &=& \beta^2 \\
 \end{array}
 $$
 where $\mu = \ln{\kappa}-\frac{\beta^2}{2\theta}$.
-
 
 The model is defined as the stochastic differential equation (***Eq6*** in ***DP_E***)
 
@@ -518,7 +501,7 @@ ouss_mle <- function(yt,tt,fguess){
 }
 ```
 
-## 3.5. OUSS-REMLE
+## OUSS-REMLE
 
 The restricted maximum likelihood estimation (REMLE) eliminates the parameter of the mean vector ($\mu$) and leave only parameters in the variance-covariance matrix (***DP_E***). This has better statistical properties than MLE for the GSS and EGSS models. The multivariate normal log-likelihood for the REMLE stationary OUSS model is given by (**Eq. 22** in ***DP_E***)
 
@@ -652,7 +635,7 @@ ouss_remle <- function(yt, tt, fguess){
 }
 ```
 
-## 3.6. OUSS-MLE - Nonstationary
+## OUSS-MLE - Nonstationary
 
 For populations experiencing transient growth phases, we can not assume that the first observations arise from stationary distributions (*e.g.*, during colonization of new areas, translocations, or recovery after catastrophic events). We can apply the multivariate normal log-likelihood, but the element in the mean vector $\mathbf{m}$ correspond to the data value $y_i$ (from the infinitesimal Itô trasnformation) given by $E[Y(t_i)] = \mu-(\mu-x_0)\exp(-\theta t_i)$ (***Eq. 13*** in ***DP_E***) instead of $E[Y(t_i)] = \mu$ (***Eq. 16*** in ***DP_E***), here we denote this new vector $\mathbf{u}$. In addition, the variance is $V[Y(t_i)]=\frac{\beta^2}{2\theta}(1-\exp(-2\theta t_i))+\tau^2$ (***Eq. 14*** in ***DP_E***) instead of $V[Y(t_i)]=\frac{\beta^2}{2\theta}+\tau^2$ (***Eq. 17*** in ***DP_E***). The log-likelihood must be numerically maximized jointly for the five unknown parameters: $\mu$ (the trend parameters for the log-abundance mean, no stationary), $\theta$ (rate to approach to stationarity), $\beta^2$ (variability of process noise), $\tau^2$ (variability of sampling), and $x_0$ (the initial population, named $\beta$ by ***H_O***).
 
@@ -834,7 +817,7 @@ $$
 $$
 
 
-## 3.7. Parametric bootstrap functions
+## Parametric bootstrap functions
 
 The parametric bootstrapping provide confidence intervals of the parameters. ***DP_E*** recommended 2000 simulations or more. In addition, this technique allows predict values in missing times of the time-series. More relevant, we can simulate trends from fitted SS models of different versions for conducting risk-based population viability monitoring (VPM). We will require the following functions:
 
@@ -1596,7 +1579,7 @@ AmericanRedstarGaps <- ouss_calc(yt = yt2,
 Although the confidence intervals increase, the general pattern is recovered!
 
 
-# 4. Population Viability Monitoring or Risk-based viable population monitoring
+## Population Viability Monitoring or Risk-based viable population monitoring
 
 Let use our time-series example to estimate the probability of extinction in a risk-based viable population monitoring. The aim is to find a temporal trend of extinction risk. Our example on American Redstart monitoring the abundance of the population for 30 years. We arbitrarily removed 6, to have gaps in the time-series. We want to assess if the extinction risk of the population has been increasing or decreasing in the last 20 years. 
 
@@ -2128,11 +2111,7 @@ ggplot(Setoruti.vpm, aes(x = Time))+
         legend.position.inside = c(0.8, 0.7))
 ```
 
-# 3. Prepare the data from eBird and time-series vectors
-
-eBird is cool, **bhla bhla bhla...**
-
-
+# Prepare the data from eBird and time-series vectors
 
 We can simplify the eBird data selecting only columns of our interest (it will reduce the size of the dataset)
 
@@ -2219,19 +2198,11 @@ SnailKite <- ebd_filt %>%
          n_lists = n()) |>
   ungroup()
 
-CellTop <- SnailKite |>
-  group_by(cell) |>
-  mutate(n_checklists = n()) |>
-  ungroup() |>
-  filter(n_checklists == max(n_checklists)) |>
-  select(cell) |>
-  unique()
-
 ```
 
 And we adjust time-series from the 1st week of 2018 (January) to the 22nd of 2024 (May). Since 2018, Snail kites reached more than 1000 records (actually, more than 800). In addition, in 2018 was the species established in Paynes' Prairie. We extract the high count per week
 
-```{r}
+```{r eval=FALSE}
 hist(SnailKite$year, breaks = 50, main = "Florida Snail kites, checklists per year", xlab = "Year")
 abline(h = 1000, v = 2017, col = "red")
 
@@ -2254,12 +2225,146 @@ saveRDS(snailkites.week, "data_tmp/SnailKiteCellsWeek.rds")
 saveRDS(snailkites.week.counts, "data_tmp/SnailKiteCellsCountsWeek.rds")
 ```
 
-This file will serve to generate a map figure with the sampling effort after filtering the eBird data following best practices (see Johnston *et al.*, *Div & Dist* 2021).
+This file will serve to generate a map figure with the sampling effort after filtering the eBird data following best practices (see Johnston *et al.*, 2021).
 
-Now we focused on the sampling unit with higher number of checklists, which correspond to the Payne's Prairie State Park wetland system in Alachua County. For this locality, we also have counts published from Poli *et.al.* (2020).
+### Snail Kite in Payne's Prairie, Alachua County, FL
 
-```{r eval=F}
-#The monitoring data by Poly et al. (2020)
+Now we focused on the sampling unit with higher number of checklists, which correspond to the Payne's Prairie State Park wetland system in Alachua County. For this locality, we also have counts published from Poli *et.al.* (2020), and 2 areas that are surveyed: Payne's Prairie and Payne's Prairie Central.
+
+![Two areas surveyed by Snail Kite project](data_raw/PP and PPC map-min.png)
+This wetland overlap with an hexagonal cell that concentrate most records ()
+```{r}
+#A global map to make figures ###
+world1 <- sf::st_as_sf(maps::map(database = 'world', plot = FALSE, fill = TRUE))
+world1
+
+#Get the number of observations in each cell
+CellObservationsSK   <- SnailKite %>% 
+  group_by(cell) %>%
+  summarise(count=n())
+
+#Get the grid cell boundaries for cells which had quakes
+gridSnailKite <- dgcellstogrid(dggs_pop,CellObservationsSK$cell)
+
+#Update the grid cells' properties to include the number of lists in each cell
+gridSnailKite <- merge(gridSnailKite, CellObservationsSK, by.x="seqnum", by.y="cell")
+
+# Handle cells that cross 180 degrees
+wrapped_gridSnailKite = st_wrap_dateline(gridSnailKite, 
+                                         options = c("WRAPDATELINE=YES","DATELINEOFFSET=180"), quiet = TRUE)
+
+my_breaks = c(5, 50, 500, 5000)
+
+arrow1 <- tibble(
+  x1 = -82.3,
+  x2 = -80.75,
+  y1 = 29.6,
+  y2 = 29.7
+)
+
+Fig1a <- ggplot() +
+  geom_sf(data = world1)+
+  geom_sf(data=wrapped_gridSnailKite,
+          aes(color = count, 
+              fill = count),
+          alpha = 0.7) +
+  #  geom_point(data = SnailKite, aes(x = longitude, y = latitude), size = 0.1)+
+  scale_color_gradient(low="#440154", 
+                       high="#FDE725",
+                       trans = "log10",  
+                       breaks = my_breaks,
+                       labels = my_breaks)+
+  scale_fill_gradient(low="#440154", 
+                      high="#FDE725",
+                      trans = "log10",  
+                      breaks = my_breaks,
+                      labels = my_breaks)+
+  coord_sf(xlim = c(-84.5, -79.5), 
+           ylim =  c(24.1, 30.9)) +
+  labs(y = "Latitude",
+       x = "Longitude",       
+       tag = expression(bold("(a)")),
+       title = "Snail Kite in Florida",
+       subtitle = "eBird effort in spatial sampling units",
+       color = expression(Log["10"]~"lists"),
+       fill = expression(Log["10"]~"lists")) +
+  annotate("text", x = -80, y = 29.75, label = "Payne's \n Prairie") +
+  geom_curve(data = arrow1, aes(x = x1, y = y1, xend = x2, yend = y2),
+             arrow = arrow(length = unit(0.08, "inch")), size = 0.5,
+             color = "red", curvature = -0.3) +
+  theme_classic()+
+  theme(legend.position = c(0.2,0.25),
+        legend.direction = "vertical",
+        legend.box.background = element_rect(colour = "black"))
+
+#Zoom to Payne's Prairie
+arrow2 <- tibble(
+  x1 = c(-82.328576, -82.334182, -82.303112, -82.292372),
+  x2 = c(-82.3, -82.375, -82.25, -82.2),
+  y1 = c(29.619306, 29.574222, 29.606876, 29.549109),
+  y2 = c(29.7, 29.475, 29.65, 29.535)
+)
+
+Fig1b <- ggplot() +
+  geom_sf(data=wrapped_gridSnailKite,
+          aes(color = count, 
+              fill = count)) +
+  geom_point(data = SnailKite, aes(x = longitude, y = latitude), 
+             size = 0.5, alpha = 0.25)+
+  scale_color_gradient(low="#440154", 
+                       high="#FDE725",
+                       trans = "log10",  
+                       breaks = my_breaks,
+                       labels = my_breaks)+
+  scale_fill_gradient(low = alpha("#440154", 0.25), 
+                      high = alpha("#FDE725", 0.25),
+                      trans = "log10",  
+                      breaks = my_breaks,
+                      labels = my_breaks)+
+  coord_sf(xlim = c(-82.475, -82.125), 
+           ylim =  c(29.45, 29.725),
+           expand = T) +
+  labs(y = "Latitude",
+       x = "Longitude",       
+       tag = expression(bold("(b)")),
+       title = "Snail Kite in Payne's Prairie",
+       subtitle = "eBird records") +
+  annotate("text", x = -82.25, y = 29.71, label = "Sweetwater Wetlands \n Park") +
+  annotate("text", x = -82.4, y = 29.475, label = "US-441") +
+  annotate("text", x = -82.2, y = 29.65, label = "La Chua trail") +
+  annotate("text", x = -82.2, y = 29.525, label = "Wacahoota trail") +
+  geom_curve(data = arrow2, aes(x = x1, y = y1, xend = x2, yend = y2),
+             arrow = arrow(length = unit(0.08, "inch")), size = 0.5,
+             color = "red", curvature = -0.3) +
+  theme_classic()+
+  theme(legend.position = "none")
+
+Fig1 <- grid.arrange(Fig1a, Fig1b, ncol = 2)
+
+ggsave("results/Fig1_SnailKitesMap.pdf", 
+       plot = Fig1, dpi = 300, width = 11, height = 5, units = "in")
+
+```
+
+
+
+
+```{r}
+#Saved data
+SnailKite <- readRDS("data_tmp/SnailKiteCellsID_filtered.rds")
+snailkites.week <- readRDS("data_tmp/SnailKiteCellsWeek.rds")
+snailkites.week.counts <- readRDS("data_tmp/SnailKiteCellsCountsWeek.rds")
+
+#Cell with more values
+CellTop <- SnailKite |>
+  group_by(cell) |>
+  mutate(n_checklists = n()) |>
+  ungroup() |>
+  filter(n_checklists == max(n_checklists)) |>
+  select(cell) |>
+  unique()
+
+#The monitoring data by Poli et al. (2020)
 Poli.etal <- data.frame(observation.date = c("2018-02-19",
                                              "2018-03-11",
                                              "2018-04-08",
@@ -2272,16 +2377,48 @@ Poli.etal <- data.frame(observation.date = c("2018-02-19",
                                              "2018-09-01",
                                              "2018-10-15",
                                              "2018-12-16"),
-                        Time.t = c(8, 10, 14, 19, 22, 23, 29, 32, 34, 35, 42, 50),
                         abundance.monitored = c(1,2,4,1,6,8,6,6,12,9,7,29))
+
+Poli.etal <- Poli.etal |>
+  mutate(observation.date = ymd(observation.date),
+         year = year(observation.date),
+         week = week(observation.date),
+         Time.t = case_when(year == 2018 ~ week,
+                            year > 2018 ~ week+(52*(year-2018))))
+
+#The monitoring data by standardized methods 2019
+
+snail.kite.project.pp <- read_csv("data_raw/Snail kite surveys on PP and PPC 2018_2024.csv") |> 
+  mutate(observation.date = mdy(date),
+         year = year(observation.date),
+         week = week(observation.date),
+         Time.t = case_when(year == 2018 ~ week,
+                            year > 2018 ~ week+(52*(year-2018)))) |>
+  group_by(observation.date, Time.t, year, week) |>
+  summarise(abundance.monitored = max(count))
+
+snail.kite.project.pp <- snail.kite.project.pp |>
+  full_join(Poli.etal)
 
 #Generate the time-series for the cell with more records
 snailkites.paynesp <- snailkites.week.counts |>
   filter(cell == CellTop$cell)
 
-#Add Poli data
+#Add standardized monitored
 snailkites.paynesp <- snailkites.paynesp |>
-  left_join(select(Poli.etal, c(Time.t,abundance.monitored)))
+  left_join(snail.kite.project.pp)
+
+plot(snailkites.paynesp$Time.t, 
+     snailkites.paynesp$Observed.y,
+     type = "b", cex.lab=1.25, col = "blue", pch = 1,
+     ylim=c(0,300),
+     ylab = "Population abundance",
+     xlab = "Observation date (weeks)")
+points(snailkites.paynesp$Time.t, 
+     snailkites.paynesp$abundance.monitored,
+     type = "b", col = "black", pch = 19)
+legend("topleft", legend=c("Observed eBird", "Standardized Monitored"),
+       col=c("blue", "black"), lty=c(1,1), pch = c(1,19), cex=0.8)
 
 ```
 
@@ -2294,7 +2431,7 @@ snailkites.paynesp.init <- snailkites.paynesp |>
 
 ```
 
-Lets fit a first EGSS model
+Lets fit a first EGSS model for the eBird data observations
 ```{r}
 
 snailkites.egss.parms <- egss_mle(yt = log(snailkites.paynesp.init$Observed.y),
@@ -2317,6 +2454,7 @@ snailkites.egss.predict <- snailkites.egss.predict |>
 
 plot(x = snailkites.egss.predict$observation_date,
      y = snailkites.egss.predict$Observed.y,
+     ylim = c(0,80),
      type = "b", cex.lab=1.25, col = "blue", pch = 1,
      ylab = "Population abundance",
      xlab = "Observation date (weeks)")
@@ -2351,9 +2489,9 @@ factor_underestimation <- lm(REMLE~abundance.monitored, data = snailkites.egss.p
 
 plot(x = snailkites.egss.predict$abundance.monitored,
      y = snailkites.egss.predict$REMLE,
-     xlim=c(0,30), ylim=c(0,30), type = "p", col = "black", pch = 19,
-     ylab = "Abundance observed (Standardized methods)",
-     xlab = "Abundance estimated (REMLE - EGSS)")
+     xlim=c(0,80), ylim=c(0,80), type = "p", col = "black", pch = 19,
+     ylab = "0bserved in Standardized methods",
+     xlab = "Predicted by REMLE - EGSS")
 abline(coef = c(0,1))
 abline(factor_underestimation, col = "darkred")
 
@@ -2365,7 +2503,7 @@ eq <- paste0("Observed = ", cf[1],
              ifelse(sign(cf[2])==1, "+", "-"), abs(cf[2]), "(Predicted)")
 
 ## printing of the equation
-mtext(eq, 3, line=-16.5, col = "darkred")
+mtext(eq, 3, line=-2, col = "darkred")
 
 ```
 
@@ -2397,7 +2535,7 @@ plot(tt[1:last.tt],
      exp(yt[1:last.tt]), 
      type="b", lwd=2, cex.lab=1.25, col = "blue",
      xlim=c(min(tt),max(tt)),
-     ylim=c(0,90), 
+     ylim=c(0,100), 
      ylab="Population abundance", xlab="Time (week since 2018-01-01)")
 points(x = snailkites.egss.predict$Time.t,
      y = snailkites.egss.predict$REMLE,
@@ -2435,12 +2573,29 @@ for(j in 1:ntraj){
 }
 
 #add critical value line
-abline(h=N.critical, lty=2, lwd=1)	
+abline(h=N.critical, lty=2, lwd=1, col = "#FF000098")	
 
 #How many of the simulations (ntraj) end below N_critical? Probability of extinction
-P.ext <- length(which(round(last.points,2) <= N.critical))/ntraj
+P.ext1 <- length(which(round(last.points,2) <= N.critical))/ntraj
 
-title(main=paste0("EGSS - P(ext risk) = ", signif(P.ext, digits=2)), cex=1.5)
+#Lognormal with library(ke31d)
+kde.sims <- kde1d(x=last.points)
+
+P.ext2 <- pkde1d(q=N.critical, obj=kde.sims)
+
+phi <- 1-(mean(c(P.ext1, P.ext2)))
+
+lines(x = (kde.sims$values*250 + m + last(thres.times)),
+      y = kde.sims$grid_points,
+      col="#d3d3d398", lwd=2, lty=1)
+
+lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*250 + m + last(thres.times)),
+      y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
+      col="#FF000098", lwd=2, lty=1)
+
+
+title(main=paste0("EGSS - P(local persistence) = ", signif(phi, digits=2)), cex=1.5)
+
 
 ```
 
