@@ -228,7 +228,7 @@ negloglike_egss_remle <- function(yt,tt,fguess_egss){
 	  qp1           <- q+1;
 	  vx            <- matrix(0,qp1,qp1);
 	  for(i in 1:q){ 
-		  vx[(i+1):qp1,(i+1):qp1] <- matrix(1,(qp1-i),(qp1-i))*tt1[i+1];
+		  vx[(i+1):qp1,(i+1):qp1] <- matrix(1,(qp1-i),(qp1-i))*tt[i+1];
 	  }
 	  Sigma.mat     <- sigmasq*vx;
 	  Itausq        <- matrix(rep(0,(qp1*qp1)), nrow=qp1, ncol=qp1);
@@ -2232,7 +2232,9 @@ This file will serve to generate a map figure with the sampling effort after fil
 Now we focused on the sampling unit with higher number of checklists, which correspond to the Payne's Prairie State Park wetland system in Alachua County. For this locality, we also have counts published from Poli *et.al.* (2020), and 2 areas that are surveyed: Payne's Prairie and Payne's Prairie Central.
 
 ![Two areas surveyed by Snail Kite project](data_raw/PP and PPC map-min.png)
-This wetland overlap with an hexagonal cell that concentrate most records ()
+This wetland overlap with an hexagonal cell that concentrate most records.
+
+#### Figure 1 - Map of sampling units
 ```{r}
 #A global map to make figures ###
 world1 <- sf::st_as_sf(maps::map(database = 'world', plot = FALSE, fill = TRUE))
@@ -2284,7 +2286,7 @@ Fig1a <- ggplot() +
   labs(y = "Latitude",
        x = "Longitude",       
        tag = expression(bold("(a)")),
-       title = "Snail Kite in Florida",
+       title = "Snail Kites in Florida",
        subtitle = "eBird effort in spatial sampling units",
        color = expression(Log["10"]~"lists"),
        fill = expression(Log["10"]~"lists")) +
@@ -2327,8 +2329,8 @@ Fig1b <- ggplot() +
   labs(y = "Latitude",
        x = "Longitude",       
        tag = expression(bold("(b)")),
-       title = "Snail Kite in Payne's Prairie",
-       subtitle = "eBird records") +
+       title = "Snail Kites in Payne's Prairie wetland",
+       subtitle = "with eBird records and popular localities") +
   annotate("text", x = -82.25, y = 29.71, label = "Sweetwater Wetlands \n Park") +
   annotate("text", x = -82.4, y = 29.475, label = "US-441") +
   annotate("text", x = -82.2, y = 29.65, label = "La Chua trail") +
@@ -2339,15 +2341,14 @@ Fig1b <- ggplot() +
   theme_classic()+
   theme(legend.position = "none")
 
-Fig1 <- grid.arrange(Fig1a, Fig1b, ncol = 2)
+Fig1 <- grid.arrange(Fig1a, Fig1b, ncol = 2, widths = c(1, 2))
 
 ggsave("results/Fig1_SnailKitesMap.pdf", 
-       plot = Fig1, dpi = 300, width = 11, height = 5, units = "in")
+       plot = Fig1, dpi = 300, width = 10, height = 5, units = "in")
 
 ```
 
-
-
+#### Time series of Payne's Prairie
 
 ```{r}
 #Saved data
@@ -2387,7 +2388,6 @@ Poli.etal <- Poli.etal |>
                             year > 2018 ~ week+(52*(year-2018))))
 
 #The monitoring data by standardized methods 2019
-
 snail.kite.project.pp <- read_csv("data_raw/Snail kite surveys on PP and PPC 2018_2024.csv") |> 
   mutate(observation.date = mdy(date),
          year = year(observation.date),
@@ -2397,6 +2397,7 @@ snail.kite.project.pp <- read_csv("data_raw/Snail kite surveys on PP and PPC 201
   group_by(observation.date, Time.t, year, week) |>
   summarise(abundance.monitored = max(count))
 
+#including Poli et al.
 snail.kite.project.pp <- snail.kite.project.pp |>
   full_join(Poli.etal)
 
@@ -2404,88 +2405,147 @@ snail.kite.project.pp <- snail.kite.project.pp |>
 snailkites.paynesp <- snailkites.week.counts |>
   filter(cell == CellTop$cell)
 
-#Add standardized monitored
+#To return dates from original data
+datesPP <- snailkites.week |> 
+  group_by(Time.t) |> 
+  summarise(observation.date = min(observation_date))
+
 snailkites.paynesp <- snailkites.paynesp |>
-  left_join(snail.kite.project.pp)
+  left_join(datesPP)
 
-plot(snailkites.paynesp$Time.t, 
-     snailkites.paynesp$Observed.y,
-     type = "b", cex.lab=1.25, col = "blue", pch = 1,
-     ylim=c(0,300),
-     ylab = "Population abundance",
-     xlab = "Observation date (weeks)")
-points(snailkites.paynesp$Time.t, 
-     snailkites.paynesp$abundance.monitored,
-     type = "b", col = "black", pch = 19)
-legend("topleft", legend=c("Observed eBird", "Standardized Monitored"),
-       col=c("blue", "black"), lty=c(1,1), pch = c(1,19), cex=0.8)
+#Add standardized monitored
+snailkites.PP <- snailkites.paynesp |>
+  full_join(snail.kite.project.pp)
 
+#Observation
+snailkites.PP |>
+  pivot_longer(cols = !c(Time.t, cell, year, week, observation.date),
+               names_to = "group",
+               values_to = "Abundance") |> 
+  drop_na(Abundance) |>
+  ggplot(aes(x = observation.date, y = Abundance, fill = group))+
+    geom_line(aes(color = group)) +
+    geom_point(aes(shape = group), color = "black")+
+    labs(x = "Observation date",
+       y = "Population abundance",
+       tag = "",
+       fill = "",
+       color = "",
+       shape = "")+
+    scale_color_manual(values = c("black", "blue"),
+                       labels = c("Standardized Monitored","eBird observations"))+
+    scale_fill_manual(values = c("black", "blue"),
+                       labels = c("Standardized Monitored","eBird observations"))+
+    scale_shape_manual(values = c(19, 21),
+                       labels = c("Standardized Monitored","eBird observations"))+
+    theme_classic()+
+    theme(legend.position = c(0.2, 0.8))
 ```
 
 We will fit an EGSS model for the first two years (weeks from 1 to 104)
 
 ```{r}
-
-snailkites.paynesp.init <- snailkites.paynesp |>
+snailkites.paynesp.init <- snailkites.PP |>
   filter(Time.t %in% c(1:104))
 
 ```
 
 Lets fit a first EGSS model for the eBird data observations
 ```{r}
+#Define variables
+yt1 = snailkites.paynesp.init |>
+  ungroup() |>
+  arrange(Time.t) |>
+  drop_na(Observed.y) |>
+  select(Observed.y) |>
+  log()
 
-snailkites.egss.parms <- egss_mle(yt = log(snailkites.paynesp.init$Observed.y),
-                                  tt = snailkites.paynesp.init$Time.t,
-                                  fguess_egss = guess_egss(log(snailkites.paynesp.init$Observed.y),
-                                                           snailkites.paynesp.init$Time.t))
+tt1 <- snailkites.paynesp.init |>
+  ungroup() |>
+  arrange(Time.t) |>
+  drop_na(Observed.y) |>
+  select(Time.t)
 
-snailkites.egss.predict <- egss_predict(yt = log(snailkites.paynesp.init$Observed.y),
-                                        tt = snailkites.paynesp.init$Time.t,
-                                        parms = snailkites.egss.parms$mles)
 
-#To return dates
-datesPP <- snailkites.week |> 
-  group_by(Time.t) |> 
-  summarise(observation_date = min(observation_date))
+sk.egss.parms <- egss_mle(yt = yt1$Observed.y,
+                          tt = tt1$Time.t,
+                          fguess_egss = guess_egss(yt = yt1$Observed.y,
+                                                   tt = tt1$Time.t))
 
-snailkites.egss.predict <- snailkites.egss.predict |>
-  left_join(snailkites.paynesp.init) |>
-  left_join(datesPP)
+sk.egss.predict <- egss_predict(yt = yt1$Observed.y,
+                                tt = tt1$Time.t,
+                                parms = sk.egss.parms$mles)
 
-plot(x = snailkites.egss.predict$observation_date,
-     y = snailkites.egss.predict$Observed.y,
-     ylim = c(0,80),
-     type = "b", cex.lab=1.25, col = "blue", pch = 1,
-     ylab = "Population abundance",
-     xlab = "Observation date (weeks)")
-points(x = snailkites.egss.predict$observation_date,
-     y = snailkites.egss.predict$REMLE,
-     type = "b", col = "darkred", pch = 2)
-points(x = snailkites.egss.predict$observation_date,
-     y = snailkites.egss.predict$abundance.monitored,
-     type = "p", col = "black", pch = 19)
-legend("topleft", legend=c("Observed eBird", "Predicted EGSS - REMLE", "Standardized Monitored"),
-       col=c("blue","darkred", "black"), lty=c(1,1,NA), pch = c(1,2,19), cex=0.8)
+sk.egss.predict.init <- sk.egss.predict |>
+  left_join(snailkites.paynesp.init |> select(Time.t, 
+                                              observation.date,
+                                              abundance.monitored), 
+            by = "Time.t") |>
+  ungroup()
 
-#or
-  
-ggplot(snailkites.egss.predict, aes(x = observation_date, y = Observed.y))+
-  geom_line(color = "blue", alpha = 0.5)+
-  geom_point(color = "blue", shape = 21, alpha = 0.5)+
-  geom_line(aes(y = REMLE), color = "red", alpha = 0.5)+
-  geom_point(aes(y = REMLE), color = "red", shape = 21, alpha = 0.5)+
-  geom_line(aes(y = abundance.monitored), color = "black", alpha = 0.5)+
-  geom_point(aes(y = abundance.monitored), color = "black")+
-  labs(x = "Observation date",
-       y = "Population abundance")+
-  theme_classic()
-
+FigS2a <- sk.egss.predict.init |>
+  pivot_longer(cols = !c(Time.t, cell,observation.date),
+               names_to = "group",
+               values_to = "Abundance") |>
+  drop_na(Abundance) |>
+  ggplot(aes(x = observation.date, y = Abundance, fill = group))+
+    geom_line(aes(color = group), linetype = "dashed") +
+    geom_point(aes(shape = group), color = "black")+
+    labs(x = "Observation date",
+       y = "Population abundance",
+       tag = expression(bold("(a)")),
+       fill = "",
+       color = "",
+       shape = "")+
+    scale_color_manual(values = c("black", "blue", "red"),
+                       labels = c("Standardized Monitored","eBird observations", "Predicted EGSS - REMLE"))+
+    scale_fill_manual(values = c("black", "blue", "red"),
+                       labels = c("Standardized Monitored","eBird observations", "Predicted EGSS - REMLE"))+
+    scale_shape_manual(values = c(19, 21, 24),
+                       labels = c("Standardized Monitored","eBird observations", "Predicted EGSS - REMLE"))+
+    theme_classic()+
+    theme(legend.position = c(0.2, 0.8))
 ```
+
 
 How much is the prediction out of the estimation?
 ```{r}
 
-factor_underestimation <- lm(REMLE~abundance.monitored, data = snailkites.egss.predict)
+lm(REMLE~abundance.monitored, data = sk.egss.predict.init)
+
+lm_eqn <- function(df, x, y){
+    m <- lm(y ~ x, df);
+    eq <- substitute(italic(y) == a + b %.% italic(x)*","~~italic(r)^2~"="~r2, 
+         list(a = format(unname(coef(m)[1]), digits = 2),
+              b = format(unname(coef(m)[2]), digits = 2),
+             r2 = format(summary(m)$r.squared, digits = 3)))
+    as.character(as.expression(eq));
+}
+
+FigS2b <- ggplot(sk.egss.predict.init, aes(x=abundance.monitored, y=REMLE))+
+  geom_point()+
+  geom_abline(slope = 1)+
+  geom_smooth(method = "lm", color = "red", se = F)+
+  scale_y_continuous(limits = c(0,80))+
+  labs(x = "Observed abundance in Standardized methods",
+       y = "Predicted abundance by EGSS from eBird",
+       tag = expression(bold("(b)")))+
+  geom_text(x = 50, y = 18, 
+            label = lm_eqn(df = sk.egss.predict.init,
+                           x = sk.egss.predict.init$abundance.monitored, 
+                           y = sk.egss.predict.init$REMLE), 
+            parse = TRUE, color = "red")+
+  coord_fixed()+
+  theme_classic()
+
+#and combine in the figure
+
+FigS2 <- grid.arrange(FigS2a, FigS2b, ncol = 2, widths = c(1.5, 1))
+
+ggsave("results/FigS2_Step1.pdf", 
+       plot = FigS2, dpi = 300, width = 10, height = 3.5, units = "in")
+
+#or ####
 
 plot(x = snailkites.egss.predict$abundance.monitored,
      y = snailkites.egss.predict$REMLE,
@@ -2511,9 +2571,24 @@ With the estimated model parameters and the data up to the first 2 years (95 wee
 
 ```{r}
 #variables:
-tt <- snailkites.paynesp$Time.t
-yt <- log(snailkites.paynesp$Observed.y)
-last.tt <- length(snailkites.paynesp.init$Time.t)
+yt = snailkites.PP |>
+  ungroup() |>
+  arrange(Time.t) |>
+  drop_na(Observed.y) |>
+  select(Observed.y) |>
+  log()
+
+yt <- yt$Observed.y
+
+tt <- snailkites.PP |>
+  ungroup() |>
+  arrange(Time.t) |>
+  drop_na(Observed.y) |>
+  select(Time.t)
+
+tt <- tt$Time.t
+
+last.tt <- nrow(yt1) #the first two years length
 
 #Define N_critical
 N.critical = (1/2)*mean(exp(yt))
@@ -2527,29 +2602,29 @@ thres.times <- 0:104
 #Maximum simulation length
 len.sim <- max(thres.times)+1
 
-#last observed time
+#last observed time (week)
 m = last(tt[1:last.tt])
 
 #plot the abundance data
 plot(tt[1:last.tt], 
      exp(yt[1:last.tt]), 
-     type="b", lwd=2, cex.lab=1.25, col = "blue",
+     type="b", lwd=2, cex.lab=1.25, col = "blue", pch = 1,
      xlim=c(min(tt),max(tt)),
      ylim=c(0,100), 
      ylab="Population abundance", xlab="Time (week since 2018-01-01)")
-points(x = snailkites.egss.predict$Time.t,
-     y = snailkites.egss.predict$REMLE,
-     type = "b", col = "darkred", pch = 2)
-points(x = snailkites.egss.predict$Time.t,
-     y = snailkites.egss.predict$abundance.monitored,
+points(x = sk.egss.predict.init$Time.t,
+     y = sk.egss.predict.init$REMLE,
+     type = "b", col = "red", pch = 2)
+points(x = sk.egss.predict.init$Time.t,
+     y = sk.egss.predict.init$abundance.monitored,
      type = "p", col = "black", pch = 19)
-legend("topleft", legend=c("Observed eBird", 
+legend("topright", legend=c("Observed eBird", 
                            "Predicted EGSS - REMLE", 
                            "Standardized Monitored",
                            "Projected above threshold",
                            "Projected below threshold"
                            ),
-       col=c("blue","darkred", "black","#d3d3d398","#FF000098"
+       col=c("blue","red", "black","#d3d3d398","#FF000098"
              ), 
        lty=c(1,2,NA,1,1
              ), pch = c(1,1,19,NA,NA
@@ -2562,7 +2637,7 @@ last.points <- rep(0,ntraj)
 for(j in 1:ntraj){
   sim.mat <- egss_sim(1,
                       tt = thres.times,
-                      parms = snailkites.egss.parms$mles)
+                      parms = sk.egss.parms$mles)
   Pop.sim <- exp(c(yt[last.tt], sim.mat[-1]))
   
   if(Pop.sim[len.sim]>=N.critical){
@@ -2573,7 +2648,7 @@ for(j in 1:ntraj){
 }
 
 #add critical value line
-abline(h=N.critical, lty=2, lwd=1, col = "#FF000098")	
+abline(h=N.critical, lty=2, lwd=1)	
 
 #How many of the simulations (ntraj) end below N_critical? Probability of extinction
 P.ext1 <- length(which(round(last.points,2) <= N.critical))/ntraj
@@ -2596,18 +2671,17 @@ lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*250 + m + last(th
 
 title(main=paste0("EGSS - P(local persistence) = ", signif(phi, digits=2)), cex=1.5)
 
-
+#Exported pdf 10x5
 ```
 
-Now, we can add the next observation (week 262; fist week of January 2020) to the time-series, and the model parameters are re-estimated as well as the probability of crashing below the $N_{critical}$ for the next two years (104 weeks). For this week, we will try to fit a OUSS as well, and decide by the density dependence parameter
+Now, we can add the next month of observations (week 108; ending January 2020) to the time-series, and the model parameters are re-estimated as well as the probability of crashing below the $N_{critical}$ for the next two years (104 weeks). For this week, we will try to fit a OUSS as well, and decide by the density dependence parameter
 
 
 ```{r}
-last.tt <- last.tt+1
+last.tt <- which(tt==108)
 
 yt[1:last.tt] #It was already converted to the log-abundance
 tt[1:last.tt]
-
 
 OUSS.partial <- ouss_remle(yt = yt[1:last.tt],
                            tt = tt[1:last.tt],
@@ -2622,7 +2696,7 @@ EGSS.partial <- egss_mle(yt = yt[1:last.tt],
                          tt = tt[1:last.tt],
                          fguess_egss = guess_egss(yt = yt[1:last.tt],
                                                   tt = tt[1:last.tt]))
-snailkites.egss.predict1 <- egss_predict(yt = yt[1:last.tt],
+sk.egss.predict1 <- egss_predict(yt = yt[1:last.tt],
                                          tt = tt[1:last.tt],
                                          parms = EGSS.partial$mles)
 
@@ -2630,26 +2704,27 @@ snailkites.egss.predict1 <- egss_predict(yt = yt[1:last.tt],
   #but m changes
 
 m = last(tt[1:last.tt])
+
+sk.egss.predict1 <- sk.egss.predict1 |>
+  left_join(snailkites.PP |> select(Time.t, 
+                                              observation.date,
+                                              abundance.monitored), 
+            by = "Time.t") |>
+  ungroup()
+
 #plot the abundance data
 plot(tt[1:last.tt], 
      exp(yt[1:last.tt]), 
      type="b", lwd=2, cex.lab=1.25, col = "blue",
      xlim=c(min(tt),max(tt)),
-     ylim=c(0,90), 
+     ylim=c(0,100), 
      ylab="Population abundance", xlab="Time (week since 2018-01-01)")
-points(x = snailkites.egss.predict1$Time.t,
-     y = snailkites.egss.predict1$REMLE,
-     type = "b", col = "darkred", pch = 2)
-legend("topleft", legend=c("Observed eBird", 
-                           "Predicted EGSS - REMLE", 
-                           "Projected above threshold",
-                           "Projected below threshold"
-                           ),
-       col=c("blue","darkred","#d3d3d398","#FF000098"
-             ), 
-       lty=c(1,2,1,1
-             ), pch = c(1,1,NA,NA
-                        ), cex=0.8)
+points(x = sk.egss.predict1$Time.t,
+     y = sk.egss.predict1$REMLE,
+     type = "b", col = "red", pch = 2)
+points(x = sk.egss.predict1$Time.t,
+     y = sk.egss.predict1$abundance.monitored,
+     type = "p", col = "black", pch = 19)
 
 last.points <- rep(0,ntraj)
 #simulate population 100 trends 
@@ -2667,30 +2742,52 @@ for(j in 1:ntraj){
 }
 
 #add critical value line
-abline(h=N.critical, lty=2, lwd=1)	
+abline(h=N.critical, lty=2, lwd=1, col = "black")	
 
 #How many of the simulations (ntraj) end below N_critical? Probability of extinction
-P.ext <- length(which(round(last.points,2) <= N.critical))/ntraj
+P.ext1 <- length(which(round(last.points,2) <= N.critical))/ntraj
 
-title(main=paste0("EGSS - P(ext risk) = ", signif(P.ext, digits=2)), cex=1.5)
+#Lognormal with library(ke31d)
+kde.sims <- kde1d(x=last.points)
+
+P.ext2 <- pkde1d(q=N.critical, obj=kde.sims)
+
+phi <- 1-(mean(c(P.ext1, P.ext2)))
+
+lines(x = (kde.sims$values*250 + m + last(thres.times)),
+      y = kde.sims$grid_points,
+      col="#d3d3d398", lwd=2, lty=1)
+
+lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*250 + m + last(thres.times)),
+      y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
+      col="#FF000098", lwd=2, lty=1)
+
+
+title(main=paste0("EGSS - P(local persistence) = ", signif(phi, digits=2)), cex=1.5)
 
 ```
 
 
-Iterating this process, for instance nine moments every 6 months (26 weeks):
+Iterating this process, for instance nine moments every 28 weeks (7 months):
 
 ```{r}
 
-N.critical <- 1/2*mean(snailkites.paynesp$Observed.y);
-
 ntraj = 1000
 
-#A vector of time steps to evaluate
-  last.tt <- seq(95,300, 25)
+m <- seq(104, 334, 28)
+
+#A vector of time steps to evaluate (position)
+last.tt <- rep(0,length(m))
+for(i in 1:length(m)){
+    last.tt[i] <- which(tt == m[i])
+  }
 
 #array to store p.below critical point (last point < N.critical/ntraj)
-  probability.ext1 <- rep(0,length(last.tt))
+  phi <- rep(0,length(last.tt))
+  
+  model <- rep(0,length(last.tt))
 
+  #Layout of 3 rows and 3 columnsx
   par(mfrow=c(3,3),mar=c(3,3,3,1),  oma=c(2,2,2,1), mgp=c(2,0.5,0))
 
   for(t in last.tt){
@@ -2700,7 +2797,7 @@ ntraj = 1000
          xlim=c(min(tt),max(tt)),
          ylim=c(0,90),
          ylab="Population abundance", xlab="Time (week since 2018-01-01)")
-  
+    
     last.points <- rep(0,ntraj)
 
     OUSS.partial <- ouss_remle(yt = yt[1:t],
@@ -2708,7 +2805,7 @@ ntraj = 1000
                                fguess = guess_ouss(yt = yt[1:t],
                                                    tt = tt[1:t]))
 
-    model <- if(OUSS.partial$remles[2] < 0.025){
+    model[t] <- if(OUSS.partial$remles[2] < 0.025){
       "EGSS"
         }else{
           "OUSS"
@@ -2724,7 +2821,7 @@ ntraj = 1000
       
       points(x = parcial.predict$tt,
              y = parcial.predict$Predict.t,
-             type = "b", col = "darkred", pch = 2)
+             type = "b", col = "red", pch = 2)
       
       for(j in 1:ntraj){
         sim.mat <- ouss_sim(1,
@@ -2743,9 +2840,25 @@ ntraj = 1000
       
       abline(h=N.critical, lty=2, lwd=1)	
       
-      probability.ext1[t] <- length(which(round(last.points,2) <= N.critical))/ntraj
+      P.ext1 <- length(which(round(last.points,2) <= N.critical))/ntraj
       
-      title(main=paste0(tt[t], " - ", model, " - P(ext risk) = ", signif(probability.ext1[t], digits=2)), cex=1.5)}
+      #Lognormal with library(ke31d)
+      kde.sims <- kde1d(x=last.points)
+
+      P.ext2 <- pkde1d(q=N.critical, obj=kde.sims)
+
+      phi[t] <- 1-(mean(c(P.ext1, P.ext2)))
+
+      lines(x = (kde.sims$values*250 + tt[t] + last(thres.times)),
+            y = kde.sims$grid_points,
+            col="#d3d3d398", lwd=2, lty=1)
+      
+      
+      lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*250 + tt[t] + last(thres.times)),
+      y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
+      col="#FF000098", lwd=2, lty=1)
+
+      title(main=paste0(tt[t], " - ", model[t], " - P(local persistence) = ", signif(phi[t], digits=2)), cex=1.5)}
   
     else{
       
@@ -2760,7 +2873,7 @@ ntraj = 1000
       
       points(x = parcial.predict$Time.t,
              y = parcial.predict$REMLE,
-             type = "b", col = "darkred", pch = 2)
+             type = "b", col = "red", pch = 2)
       
     for(j in 1:ntraj){
     
@@ -2779,26 +2892,240 @@ ntraj = 1000
       
       abline(h=N.critical, lty=2, lwd=1)	
       
-      probability.ext1[t] <- length(which(round(last.points,2) <= N.critical))/ntraj
+      P.ext1 <- length(which(round(last.points,2) <= N.critical))/ntraj
       
-      title(main=paste0(tt[t], " - ", model, " - P(ext risk) = ", signif(probability.ext1[t], digits=2)), cex=1.5)}
+      #Lognormal with library(ke31d)
+      kde.sims <- kde1d(x=last.points)
+
+      P.ext2 <- pkde1d(q=N.critical, obj=kde.sims)
+
+      phi[t] <- 1-(mean(c(P.ext1, P.ext2)))
+
+      lines(x = (kde.sims$values*250 + tt[t] + last(thres.times)),
+            y = kde.sims$grid_points,
+            col="#d3d3d398", lwd=2, lty=1)
+      
+      
+      lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*250 + tt[t] + last(thres.times)),
+      y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
+      col="#FF000098", lwd=2, lty=1)
+
+      title(main=paste0(tt[t], " - ", model[t], " - P(local persistence) = ", signif(phi[t], digits=2)), cex=1.5)}
 
 }
 
+#save pdf  
+  
 par(mfrow=c(1,1))
 
-plot(probability.ext1, 
-     xlim=c(min(tt),max(tt)),
-     type = "b", ylim = c(0,1), 
-     ylab = "Probability of extinction risk", 
-     xlab = "Time (week since 2018-01-01)")
 ```
 
 Let iterates for each time period
 
 ```{r}
-snailkites.pp.pvm <- vpm(yt, tt, ntraj = 1000, N.critical = N.critical, plt = 104)
+ntraj = 1000
 
-saveRDS(snailkites.pp.pvm, "SnailKites_PaynesPrairie_PVM.rds")
+#A vector of the time step (week)
+m <- seq(104, 334, 4)
+
+#A vector of position for each time steps to evaluate within m
+last.tt <- rep(0,length(m))
+for(i in 1:length(m)){
+    last.tt[i] <- which(tt == m[i])
+  }
+
+#array to store p.below critical point (last point < N.critical/ntraj)
+  phi <- rep(0,length(last.tt))
+  
+  model <- rep(0,length(last.tt))
+
+  #Layout of 3 rows and 3 columns
+  par(mfrow=c(2,1),mar=c(3,3,3,1),  oma=c(2,2,2,1), mgp=c(2,0.5,0))
+
+  for(t in last.tt){
+    plot(tt[1:t],
+         exp(yt[1:t]),
+         type="b", lwd=2, cex.lab=1.25, col = "blue",
+         xlim=c(min(tt),max(tt)),
+         ylim=c(0,90),
+         ylab="Population abundance", xlab="Time (week since 2018-01-01)")
+    
+    last.points <- rep(0,ntraj)
+
+    OUSS.partial <- ouss_remle(yt = yt[1:t],
+                               tt = tt[1:t],
+                               fguess = guess_ouss(yt = yt[1:t],
+                                                   tt = tt[1:t]))
+
+    model[t] <- if(OUSS.partial$remles[2] < 0.025){
+      "EGSS"
+        }else{
+          "OUSS"
+          }
+  
+    if(model[t] == "OUSS"){
+      parcial.predict <- ouss_predict(yt = yt[1:t],
+                                      tt = tt[1:t],
+                                      parms = OUSS.partial$remles,
+                                      plot.it = F)
+      
+      parcial.predict <- as.data.frame(parcial.predict[1])
+      
+      points(x = parcial.predict$tt,
+             y = parcial.predict$Predict.t,
+             type = "b", col = "red", pch = 2)
+      
+      for(j in 1:ntraj){
+        sim.mat <- ouss_sim(1,
+                            tt = thres.times,
+                            parms = OUSS.partial$remles)
+      
+      Pop.sim <- exp(c(yt[t], sim.mat[-1]))
+  
+        if(Pop.sim[len.sim]>=N.critical){
+          lines(tt[t]+thres.times, Pop.sim, col="#d3d3d318", lty = "solid")
+        }else{
+          lines(tt[t]+thres.times, Pop.sim, col="#FF000018", lty = "solid")}
+  
+      last.points[j] <- Pop.sim[len.sim]
+      }
+      
+      abline(h=N.critical, lty=2, lwd=1)	
+      
+      P.ext1 <- length(which(round(last.points,2) <= N.critical))/ntraj
+      
+      #Lognormal with library(ke31d)
+      kde.sims <- kde1d(x=last.points)
+
+      P.ext2 <- pkde1d(q=N.critical, obj=kde.sims)
+
+      phi[t] <- 1-(mean(c(P.ext1, P.ext2)))
+
+      lines(x = (kde.sims$values*250 + tt[t] + last(thres.times)),
+            y = kde.sims$grid_points,
+            col="#d3d3d398", lwd=2, lty=1)
+      
+      
+      lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*250 + tt[t] + last(thres.times)),
+      y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
+      col="#FF000098", lwd=2, lty=1)
+
+      title(main=paste0(tt[t], " - ", model[t], " - P(local persistence) = ", signif(phi[t], digits=2)), cex=1.5)}
+  
+    else{
+      
+      EGSS.partial <- egss_mle(yt = yt[1:t],
+                           tt = tt[1:t],
+                           fguess_egss = guess_egss(yt = yt[1:t],
+                                               tt = tt[1:t]))
+    
+      parcial.predict <- egss_predict(yt = yt[1:t],
+                                      tt = tt[1:t],
+                                      parms = EGSS.partial$mles)
+      
+      points(x = parcial.predict$Time.t,
+             y = parcial.predict$REMLE,
+             type = "b", col = "red", pch = 2)
+      
+    for(j in 1:ntraj){
+    
+      sim.mat <- egss_sim(1,
+                          tt = thres.times,
+                          parms = EGSS.partial$mles)
+      Pop.sim <- exp(c(yt[t], sim.mat[-1]))
+  
+        if(Pop.sim[len.sim]>=N.critical){
+          lines(tt[t]+thres.times, Pop.sim, col="#d3d3d318", lty = "solid")
+        }else{
+          lines(tt[t]+thres.times, Pop.sim, col="#FF000018", lty = "solid")}
+  
+      last.points[j] <- Pop.sim[len.sim]
+      }
+      
+      abline(h=N.critical, lty=2, lwd=1)	
+      
+      P.ext1 <- length(which(round(last.points,2) <= N.critical))/ntraj
+      
+      #Lognormal with library(ke31d)
+      kde.sims <- kde1d(x=last.points)
+
+      P.ext2 <- pkde1d(q=N.critical, obj=kde.sims)
+
+      phi[t] <- 1-(mean(c(P.ext1, P.ext2)))
+
+      lines(x = (kde.sims$values*250 + tt[t] + last(thres.times)),
+            y = kde.sims$grid_points,
+            col="#d3d3d398", lwd=2, lty=1)
+      
+      
+      lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*250 + tt[t] + last(thres.times)),
+      y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
+      col="#FF000098", lwd=2, lty=1)
+
+      title(main=paste0(tt[t], " - ", model[t], " - P(local persistence) = ", signif(phi[t], digits=2)), cex=1.5)}
+
+  }
+  
+  par(mfrow=c(1,1))
 ```
 
+Recovering the data
+
+```{r}
+localpersist <- data.frame(phi = phi,
+                           model = model,
+                           t = c(1:length(phi)))
+
+localpersist$Time.t <- tt[localpersist$t]
+
+inset.plot <- ggplot(snailkites.PP, aes(x = observation.date, 
+                                       y = abundance.monitored))+
+              geom_point(color = "black")+
+              labs(x = "",
+                   y = "")+
+                theme_classic()+
+              theme(panel.border = element_rect(colour = "black", fill=NA, size=1))
+  
+
+coeff <- 100
+
+main.plot <- snailkites.PP |>
+  left_join(localpersist) |> 
+  ungroup() |>
+  mutate(phi = phi*coeff) |>
+  pivot_longer(cols = !c(Time.t, cell, year, week, observation.date, model,t),
+               names_to = "group",
+               values_to = "Abundance") |>
+  drop_na(Abundance) |> filter(Abundance > 0) |>
+  ggplot(aes(x = observation.date, y = Abundance, fill = group))+
+    geom_vline(xintercept = snailkites.PP$observation.date[95], color = "gray", linetype = "dotted")+
+    geom_line(aes(color = group), linetype = "solid", alpha = 0.5) +
+    geom_point(aes(shape = group), color = "black", alpha = 0.75)+
+    labs(x = "Observation date",
+       y = "Population abundance",
+       tag = "",
+       fill = "",
+       color = "",
+       shape = "") +
+  scale_y_continuous(limits = c(0,100),
+                     sec.axis = sec_axis(trans = ~./100, 
+                                         name = "Probability (Local persistence)"))+
+    scale_color_manual(values = c("white", "blue", "red"),
+                       labels = c("Standardized Monitored","eBird observations", "P(Local persistence)"))+
+    scale_fill_manual(values = c("black", "blue", "red"),
+                       labels = c("Standardized Monitored","eBird observations", "P(Local persistence)"))+
+    scale_shape_manual(values = c(19, 21,23),
+                       labels = c("Standardized Monitored","eBird observations", "P(Local persistence)"))+
+    theme_classic()+
+    theme(legend.position = "bottom")+
+    theme(axis.line.y.right = element_line(color = "red"), 
+       axis.ticks.y.right = element_line(color = "red"))
+
+library(cowplot)
+
+plot.with.inset <-
+  ggdraw() +
+  draw_plot(main.plot) +
+  draw_plot(inset.plot, x = 0.053, y = .7, width = .27, height = .25)
+
+```
