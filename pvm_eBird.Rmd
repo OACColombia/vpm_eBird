@@ -2,7 +2,7 @@
 title: "Risk-based viable population monitoring from community science data"
 author: "Authors...(removed for peer review in Methods in Ecology and Evolution)"
 date: "`r format(Sys.time(), '%B %Y')`"
-output: pdf_document
+output: html_document
 editor_options: 
   chunk_output_type: console
 ---
@@ -160,15 +160,15 @@ saveRDS(snailkites.week.counts, "data_tmp/SnailKiteCellsCountsWeek.rds")
 
 This file will serve to generate a map figure with the sampling effort after filtering the eBird data following best practices (see Johnston *et al.*, 2021).
 
-## Snail Kite in Payne's Prairie, Alachua County, FL
+# Snail Kite in Payne's Prairie, Alachua County, FL - Figure 1
 
 We focused on the sampling unit with higher number of checklists, which correspond to the Payne's Prairie State Park wetland system in Alachua County. For this locality, we also have counts published from Poli *et.al.* (2020), and 2 areas that are surveyed: Payne's Prairie and Payne's Prairie Central.
 
 ![Two areas surveyed by Snail Kite project](data_raw/PP and PPC map-min.png)
 This wetland overlap with an hexagonal cell that concentrate most records.
 
-### Figure 1 - Map of sampling units
-```{r}
+## Figure 1 - Map of sampling units
+```{r eval=FALSE}
 #A global map to make figures ###
 world1 <- sf::st_as_sf(maps::map(database = 'world', plot = FALSE, fill = TRUE))
 world1
@@ -281,7 +281,7 @@ ggsave("results/Fig1_SnailKitesMap.pdf",
 
 ```
 
-## Payne's Prairie has standardized monitoring data - combine with eBird
+# Payne's Prairie has standardized monitoring data - combine with eBird
 
 Joining eBird and standardized monitoring (benchmark).
 
@@ -377,9 +377,9 @@ snailkites.PP |>
     theme(legend.position = c(0.2, 0.8))
 ```
 
-# Population viability monitoring framework
+## Population viability monitoring framework
 
-## 1. Fit an initial model to the first part of the time-series
+### 1. Fit an initial model to the first part of the time-series
 We will fit an EGSS model for the first two years (weeks from 1 to 104)
 
 ```{r}
@@ -490,7 +490,7 @@ ggsave("results/FigS2_Step1.pdf",
 ```
 
 
-## 2. First estimation of p(local persistence)
+### 2. First estimation of p(local persistence)
 
 With the estimated model parameters and the data up to the first 2 years (95 weeks with observation), we estimated the probability that the population will end below a critical threshold ($N_{critical}$, as the critical number of individuals) for the next two years (104 weeks). Let assume this $N_{critical} = 1/2 (\exp\bar{(y)})$. The resulting probability is recorded.
 
@@ -601,7 +601,7 @@ title(main=paste0("EGSS - P(local persistence) = ", signif(phi, digits=2)), cex=
 #Exported pdf 10x5
 ```
 
-## 3. Add the next month of observations, repete model fit and projection to estimate p(local persistence)
+### 3. Add the next month of observations, repete model fit and projection to estimate p(local persistence)
 
 We can add the next month of observations (week 108; end of January 2020) to the time-series, and the model parameters are re-estimated as well as the probability of crashing below the $N_{critical}$ for the next two years (104 weeks). We will try to fit a OUSS for this new updated data set, and decide by the density dependence parameter.
 
@@ -697,7 +697,7 @@ title(main=paste0("EGSS - P(local persistence) = ", signif(phi, digits=2)), cex=
 
 ```
 
-## 4.1. Iterate the process and showing some examples
+### 4.1. Iterate the process and showing some examples
 
 Iterating this process, for instance nine moments every 28 weeks (7 months):
 
@@ -852,11 +852,11 @@ par(mfrow=c(1,1))
 
 ```
 
-## 4.2. Iterate the process for every month
+### 4.2. Iterate the process for every month
 
 Let iterates for each time period
 
-```{r}
+```{r eval=FALSE}
 ntraj = 1000
 
 #A vector of the time step (week)
@@ -1008,7 +1008,7 @@ for(i in 1:length(m)){
 ## 5. Recovery the data and make figure
 Recovering the data
 
-```{r}
+```{r eval=FALSE}
 localpersist <- data.frame(phi = phi,
                            model = model,
                            t = c(1:length(phi))) 
