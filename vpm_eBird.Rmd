@@ -24,14 +24,14 @@ editor_options:
 This file is the code used for a paper \textit{to be submitted} to \textbf{\textit{Methods
 in Ecology and Evolution}}. We hope this code is applied for
 different users in an intuitive and practical way. Our aim is to describe and test a framework to estimate risk-based population viability - local persistence probability ($\phi$) from community science data ([eBird](https://ebird.org/home)). Using a case study, we assess the accuracy of local persistence probability estimates by comparing estimates using eBird data with those from robust systematic monitoring. Then, we conducted a sensitivity analysis to assess how robust are the local persistence estimates to limitation in the number of eBird observations available. We used the risk-based viable population monitoring framework ([Staples *et al.*,
-2005](https://conbio.onlinelibrary.wiley.com/doi/full/10.1111/j.1523-1739.2005.00283.x)), fitting robust continuous mechanistic state-space population models under density-independent ([Humbert *et al.*, 2009](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x)) or density-dependent dynamics ([Dennis & Ponciano, 2014](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/13-1486.1)). We focused on the recent (since 2018) expanded population of Snail Kite ([*Rostrhamus sociabilis plumbeus*](https://birdsoftheworld.org/bow/species/snakit/cur/introduction)) in northcentral Florida, US, a species with long-term monitoring efforts following standardized protocols that provide benchmark population trends (see Section 2.1 in the main text).  
+2005](https://conbio.onlinelibrary.wiley.com/doi/full/10.1111/j.1523-1739.2005.00283.x)), fitting robust continuous mechanistic state-space population models under density-independent ([Humbert *et al.*, 2009](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x)). This population dynamic can be (and we provide the code for) to density-dependent dynamics ([Dennis & Ponciano, 2014](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/13-1486.1)). We focused on the recent (since 2018) expanded population of Snail Kite ([*Rostrhamus sociabilis plumbeus*](https://birdsoftheworld.org/bow/species/snakit/cur/introduction)) in northcentral Florida, US, a species with long-term monitoring efforts following standardized protocols that provide benchmark population trends for comparison (see Section 2.1 in the main text).  
 
-Specifically, we fit two continuous versions of the discrete-time equal sampling Gompertz State-Space model:
+Two continuous versions of the discrete-time equal sampling Gompertz State-Space model can be fitted with our approach:
 
 1.  The density-dependent Ornstein-Uhlenbeck State-Space model (OUSS)
 2.  The density-independent Exponential Growth State Space model (EGSS)
 
-We applied a risk-based viable population monitoring framework (see
+We present the risk-based viable population monitoring framework (see
 [Staples *et al.*,
 2005](https://conbio.onlinelibrary.wiley.com/doi/full/10.1111/j.1523-1739.2005.00283.x)),
 estimating the probability of local persistence $\phi$;
@@ -64,6 +64,8 @@ section.
   library(tidyverse)
 #To conduct Spatiotemporal Subsampling
   library(dggridR)
+#Simple features to encode spatial vector data
+  library(sf)
 #load maps
   library(maps); 
 #composite figure
@@ -74,7 +76,7 @@ section.
 
 ## Special cases of the Gompertz state-space population dynamic model
 
-We used two special cases models of the discrete-time Gompertz State Space model ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)); the density dependent version that we heretofore denotes as the GSS model and the density-independent model (EGSS) from [Humbert *et al.* (2009)](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x). Let $N_t$ be the latent unobserved abundance population at time $t$, the ecological process in the GSS model. This abundance is defined as $N_t = N_{t-1} ~e^{a+b*\ln{N_{t-1}} + E_t}$), where $a$ and $b$ are constants representing population growth rate and density dependence, and $E_t$ is the environmental stochasticity or process noise, $E_t\sim \text{Normal}(0,\sigma^2)$ ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). On the logarithmic scale ($X_t = \ln{⁡N_t}$), the GSS becomes linear and follows an autoregressive model of order 1: $X_t = X_{t-1} + a + b*X_{t-1} + E_t$,  which can be simplify as $X_t = a + c*X_{t-1} + E_t$, where $c = b+1$ is a constant that represents the strength of density dependence ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2); [Ponciano *et al.*, 2018](https://doi.org/10.1016/j.tpb.2018.04.002); [Reddingius, 1971 in Acta Biotheor, 20, 1-208](https://scholar.google.com/scholar?hl=en&as_sdt=0%2C10&q=Gambling+for+existence.+A+discussion+of+some+theoretical+problems+in+animal+population+ecology&btnG=)). If $b=0$ ($c=1$), the GSS reduces to the density-independent model fully treated in state-space model form by [Humbert *et al.* (2009)](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x).
+We provide the rationale to use two special cases models of the discrete-time Gompertz State Space model ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)); the density dependent version that we heretofore denotes as the GSS model and the density-independent model (EGSS) from [Humbert *et al.* (2009)](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x). Let $N_t$ be the latent unobserved abundance population at time $t$, the ecological process in the GSS model. This abundance is defined as $N_t = N_{t-1} ~e^{a+b*\ln{N_{t-1}} + E_t}$), where $a$ and $b$ are constants representing population growth rate and density dependence, and $E_t$ is the environmental stochasticity or process noise, $E_t\sim \text{Normal}(0,\sigma^2)$ ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). On the logarithmic scale ($X_t = \ln{⁡N_t}$), the GSS becomes linear and follows an autoregressive model of order 1: $X_t = X_{t-1} + a + b*X_{t-1} + E_t$,  which can be simplify as $X_t = a + c*X_{t-1} + E_t$, where $c = b+1$ is a constant that represents the strength of density dependence ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2); [Ponciano *et al.*, 2018](https://doi.org/10.1016/j.tpb.2018.04.002); [Reddingius, 1971 in Acta Biotheor, 20, 1-208](https://scholar.google.com/scholar?hl=en&as_sdt=0%2C10&q=Gambling+for+existence.+A+discussion+of+some+theoretical+problems+in+animal+population+ecology&btnG=)). If $b=0$ ($c=1$), the GSS reduces to the density-independent model fully treated in state-space model form by [Humbert *et al.* (2009)](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x).
 
 The discrete GSS population model has four unknown parameters: $a$, $c$, $\sigma^2$, and $\tau^2$ ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). The transition probability distribution of this logarithmic abundance model is normal, with mean and variance changing as a function of time. The parameter $c$ represents the strength of density-dependence ([Ponciano *et al.*, 2018](https://doi.org/10.1016/j.tpb.2018.04.002)). If the strength of density dependence ($c$) ranges $-1<c<1$, the long-run probability distribution of log-abundance approaches a time-independent normal stationary distribution ($X_t→X_∞$), with mean $\frac{a}{1-c}$ and variance $\frac{\sigma^2}{1-c^2}$. Thus, instead of approaching a single population abundance value, or a carrying capacity like deterministic population models, the density dependent stochastic GSS model approaches a stationary distribution, a cloud of points around which the population fluctuates ([Dennis & Taper, 1994](https://doi.org/10.2307/2937041); [Wolda, 1989](https://doi.org/10.1007/BF00377095)). The mean of this probability distribution, $\frac{a}{1-c}$, represents a long-term expected population ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). As mentioned above, the density-independent stochastic exponential growth model of [Dennis *et al.* (1991)](https://esajournals.onlinelibrary.wiley.com/doi/10.2307/1943004) is attained when $b=0$ ($c=1$); the state equation then becomes $N_t = N_{t-1} ~e^{a + E_t}$ ([Dennis *et al.*, 1991](https://esajournals.onlinelibrary.wiley.com/doi/10.2307/1943004)). The state-space model formulation for these two models is completed with the specification of the sampling (observation) error model. Following [Dennis *et al.* (2006)](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2), we assumed that the log-observation at time $t$, $Y_t$, is a sample from the (stochastic) process model according to the equation $Y_t = X_t + F_t$; where the $F_t$ are independent and identically distributed normal random variables, i.e. $F_t \sim \text{Normal}(0,\tau^2)$. During transition growth dynamics, the EGSS model may more accurately represents population trends.
 
@@ -815,7 +817,7 @@ have access, click on "Basic dataset (EBD)"
 Then, you can select by Species, region, date. In our case, lets
 download *Rostrhamus sociabilis* in Florida (US).
 
-![Asking Snail Kite in Florida, US](data_raw/SnailKite_Florida_access_eBird.png){width=50%} 
+![Asking Snail Kite in Florida, US - screenshot of a previous download for June 2024](data_raw/SnailKite_Florida_access_eBird.png){width=50%} 
 
 In the options, include the sampling event data always is a good recommendation. In 
 Snail Kite for US it will save the sampling event, but for other Neotropical
@@ -830,7 +832,7 @@ in a `data_raw` directory to be called during the filtering.
 
 ![Downloaded file](data_raw/files_deployment.png){width=20%}
 
-This file will have the detections and observer counts for our species.
+This file will have the detection and observer counts for our species.
 
 \FloatBarrier
 
@@ -854,7 +856,7 @@ colsE <- c("observer_id", "sampling_event_identifier",
 
 To conduct some filters, we will generate temporal files in our
 computer. Here we generate only a single temporal file that can be
-overwrite to assess different species.
+overwritten to assess different species.
 
 ```{r temporary filter files, eval=FALSE}
 f_ebd <- "data_tmp/ebd_Examples.txt" 
@@ -873,7 +875,6 @@ Scale - CLS), in our case `spacing = 11` indicates a diameter of
 
 ```{r construct discrete global grid}
 #specify seed for random number generation
-set.seed(123)
 dggs_pop <- dgconstruct(spacing = 11) 
 ```
 
@@ -895,7 +896,7 @@ the selected columns (defined in the pre-filtering). Finally, the
 function `read_ebd()` read the filtered file.
 
 ```{r ebd-filter, eval=FALSE}
-ebd_filt <- auk_ebd("data_raw/ebd_US-FL_snakit_smp_relJun-2024.txt") %>%
+ebd_filt <- auk_ebd("data_raw/ebd_US-FL_snakit_smp_relSep-2024.txt") %>%
   auk_protocol(c("Traveling", "Stationary")) %>%
   auk_distance(distance = c(0,5)) %>%
   auk_duration(duration = c(0,300))%>%
@@ -906,8 +907,8 @@ ebd_filt <- auk_ebd("data_raw/ebd_US-FL_snakit_smp_relJun-2024.txt") %>%
 
 ![head of the ebd_filt file](data_raw/ebd_filt_head.png){width=50%}
 
-Then, just for the sake of double check and organization, we can remove
-the observations without count, add distance $0$ to
+Then, just for the sake of double checking and organization, we can remove
+the observations without counts, add distance $0$ to
 stationary protocols, modify the time of observations started to decimal, 
 round hour sampling to an integer, extract year, month, week, and
 day_of_year. Also, we can confirm and filter out by effort, such as
@@ -969,13 +970,13 @@ saveRDS(SnailKite, "data_tmp/SnailKiteCellsID_filtered.rds")
 ## Time series of eBird weekly high-counts
 
 We adjusted the time-series from the 1st week of 2018 (January) to the
-last with data of 2024 (June). Since 2018, Snail kites reached more than 1000
+last with data of 2024 (September). Since 2018, Snail kites reached more than 1000
 records.
 
 ```{r temporal bias}
 SnailKite <- readRDS("data_tmp/SnailKiteCellsID_filtered.rds")
 
-png('supporting/FigSI-1_HistogramTemporalBias.png',
+png('data_tmp/FigSI-1_HistogramTemporalBias.png',
     width = 10, height = 5, units = "in", res = 300) 
 
 hist(SnailKite$year, 
@@ -986,7 +987,7 @@ abline(h = 1000, v = 2017, col = "red")
 dev.off()
 ```
 
-![Histogram of the number of eBird checklists per year for Florida Snail kites. Red lines indicate our temporal sampling bias threshold (more than 1000 checklists per year), concentrating our sampling between January 2018 and May 2024.](supporting/FigSI-1_HistogramTemporalBias.png)
+![Histogram of the number of eBird checklists per year for Florida Snail kites. Red lines indicate our temporal sampling bias threshold (more than 1000 checklists per year), concentrating our sampling between January 2018 and May 2024.](data_tmp/FigSI-1_HistogramTemporalBias.png)
 
 In addition, the spatial cell with higher records overlaps with the
 Payne's Prairie State Park wetland in Alachua County, north central
@@ -1058,7 +1059,7 @@ world1
 
 We can summarize the filtered ebd-data set `SnailKite` by the number of
 observations in each hexagonal cell. Below code will generate a tibble
-with two variables and 440 observations, the count of observations per
+with two variables and 444 observations, the count of observations per
 each cell.
 
 ```{r number of records per cell, eval=FALSE}
@@ -1067,6 +1068,8 @@ CellObservationsSK   <- SnailKite %>%
   group_by(cell) %>%
   summarise(count=n())
 ```
+
+![Head of Snail Kite observations per cell](data_raw/head_obs_SK_cell.png){width=50%}
 
 And get a grid cell boundaries for cells with the observations counts
 with the function `dgcellstogrid()`, using the discrete global grid
@@ -1091,6 +1094,8 @@ wrapped_gridSnailKite = st_wrap_dateline(gridSnailKite,
                                                      "DATELINEOFFSET=180"), 
                                          quiet = TRUE)
 ```
+
+![Head of wrapped grid for Snail kites in Florida](data_raw/head_cells_SK_wrapped.png){width=50%}
 
 Some aesthetics are defined for the log-scales and arrows
 
@@ -1194,7 +1199,7 @@ ggsave("results/Fig1_SnailKitesMap.png",
        plot = Fig1, dpi = 300, width = 10, height = 5, units = "in")
 ```
 
-![Map of spatial eBird sampling of Snail kites in Florida (a) and zoom to the hexagonal cell with higher records in eBird (b). Each hexagonal cell corresponds to an area of ~100 km2, and the bright color identify cells with higher sampling in eBird (note log10 scale). A single cell in northcentral Florida (~Payne’s Prairie Preserve State Park, ~85 km2) concentrated 7,291 checklists (intense yellow color and red arrow in (a), with transparency in (b)). Records of Snail Kite in Payne’s Prairie display some popular visited sites within this sampling unit (b), some overlapping or surrounding areas with standardized long-term monitoring surveys. *Figure 1 in Main text*](results/Fig1_SnailKitesMap.png){width=100%}
+![Map of spatial eBird sampling of Snail kites in Florida (a) and zoom to the hexagonal cell with higher records in eBird (b). Each hexagonal cell corresponds to an area of ~100 km2, and the bright color identify cells with higher sampling in eBird (note log10 scale). A single cell in northcentral Florida (~Payne’s Prairie Preserve State Park, ~85 km2) concentrated 7,291 checklists (intense yellow color and red arrow in (a), with transparency in (b)). Records of Snail Kite in Payne’s Prairie display some popular visited sites within this sampling unit (b), some overlapping or surrounding areas with standardized long-term monitoring surveys. *Figure 1 in Main text*](results/Fig1_SnailKitesMap.png){width=80%}
 
 \FloatBarrier
 
@@ -1349,12 +1354,12 @@ snailkites.PP |>
                values_to = "Abundance") |> 
   drop_na(Abundance) |>
   ggplot(aes(x = observation.date, y = Abundance, fill = group))+
-    geom_vline(xintercept = snailkites.PP$observation.date[86], 
+    geom_vline(xintercept = snailkites.PP$observation.date[78], 
              color = "gray", linetype = "dotted") +
     geom_line(aes(color = group), alpha = 0.25, linetype = "dashed") +
     geom_point(aes(shape = group), color = "black")+
     labs(x = "Observation date",
-       y = "Population abundance",
+       y = "Observed weekly high counts",
        title = "Time series contrast",
        tag = "",
        fill = "",
@@ -1374,13 +1379,13 @@ snailkites.PP |>
 ```
 
 Assumed initial population establishment is depicted to the left of the 
-vertical dotted gray line (week 95; October 2019). Local persistence 
+vertical dotted gray line (weeks 1-87;January 2018-August 2019). Local persistence 
 probability estimation ($\hat{\phi}$) will correspond to the weeks to the 
-right of the dotted gray line ($n_{eBird} = 242$, $n_{SM}=48$).
+right of the dotted gray line ($n_{eBird} = 262$, $n_{SM}=33$).
 
 \clearpage
 
-# Population viability monitoring framework and local persistence estimation - $\hat{\phi}$
+# Viability Population Monitoring framework and local persistence estimation - $\hat{\phi}$
 
 In the next section, we provide a step by step example and the iterated 
 process for each week estimation of local persistence probability 
@@ -1388,17 +1393,17 @@ process for each week estimation of local persistence probability
 
 ## Fit dynamic population model to a first part of the time-series
 
-Let's fit an EGSS model for the first two years – weeks from 1 to 95, n = 86, 
+Let's fit an EGSS model for the first two years – weeks from 1 to 87, n = 78, 
 matching Standardized monitoring data, including the published data ([Poli *et al.*, 2020](https://bioone.org/journals/the-wilson-journal-of-ornithology/volume-132/issue-1/1559-4491-132.1.183/Recent-breeding-range-expansion-of-the-endangered-Snail-Kite-Rostrhamus/10.1676/1559-4491-132.1.183.full)).
 
-First, load the data saved and filter `Time.t` between `1:95`.
+First, load the data saved and filter `Time.t` between `1:87`.
 
 ```{r load data and filter initial dynamic}
 datesPP <- readRDS("data_tmp/datesTimeseriesPaynesPrairie.rds")
 snailkites.PP <- readRDS("data_tmp/snailkitesPP.rds")
 
 sk.pp.init <- snailkites.PP |>
-  filter(Time.t %in% c(1:95))
+  filter(Time.t %in% c(1:87))
 ```
 
 To fit a first EGSS model for the eBird data observations, we have to
@@ -1438,11 +1443,11 @@ print(sk.egss.parms)
 
 The function `egss_remle()` fit an EGSS model and compute the Restricted
 Maximum Likelihood Estimates, which are stored in the first object of
-the object list (named here `sk.egss.parms`). The values correspond (in
-order) to the trend parameter ($\hat{\theta}_{eBird}=0.02924$), the
-environmental noise ($\hat{\sigma^2}_{eBird}=0.03161$), observation
-error noise ($\hat{\tau^2}_{eBird}=0.25248$), and initial population
-($\hat{x_0}_{eBird}=-0.01407$; note that $e^{x_0}\approx1$).
+the list (named here `sk.egss.parms`). The values correspond (in
+order) to the trend parameter ($\hat{\theta}_{eBird}=0.0271$), the
+environmental noise ($\hat{\sigma^2}_{eBird}=0.0344$), observation
+error noise ($\hat{\tau^2}_{eBird}=0.2658$), and initial population
+($\hat{x_0}_{eBird}=-0.0128$; note that $e^{x_0}\approx1$).
 
 With the `egss_predict()` function, we can predict the trajectory for
 the EGSS model.
@@ -1451,7 +1456,7 @@ the EGSS model.
 sk.egss.predict.init <- egss_predict(yt = yt1,
                                 tt = tt1,
                                 parms = sk.egss.parms$remles,
-                                plot.it = T)
+                                plot.it = TRUE)
 head(sk.egss.predict.init[[1]])
 ```
 
@@ -1501,17 +1506,17 @@ skSM.egss.parms
 ```
 
 Again, the values correspond (in order) to the trend parameter
-($\hat{\theta}_{SM}=0.04894$), the environmental noise
-($\hat{\sigma}_{SM}^2=0.02954$), observation error noise
-($\hat{\tau}_{SM}^2=0.02677$), and initial population
-($\hat{x_0}=0.13109$). 
+($\hat{\theta}_{SM}=0.0556$), the environmental noise
+($\hat{\sigma}_{SM}^2=0.0346$), observation error noise
+($\hat{\tau}_{SM}^2=0.0188$), and initial population
+($\hat{x_0}=0.1258$). 
 
 It is interesting that $\hat{\sigma}_{SM}^2$ is
 similar ($\sim 0.03$) to $\hat{\sigma}_{eBird}^2$, as well as
-$e^{x_0 = 0.131}_{SM}\approx1$ and $e^{x_0 = -0.014}_{eBird}\approx1$,
+$e^{x_0 = 0.126}_{SM}\approx1$ and $e^{x_0 = -0.013}_{eBird}\approx1$,
 but the observation error is about an order of magnitude bigger in eBird data
-with respect to the standardized monitoring ($\hat{\tau}_{SM}^2=0.02677$ $<<$
-$\hat{\tau}_{eBird}^2=0.25248$). The expected change in log-abundance per week describe lower change in eBird ($\hat{\theta}_{eBird}=0.02924$) and higher changes in standardized monitoring weekly counts ($\hat{\theta}_{SM}=0.04894$).
+with respect to the standardized monitoring ($\hat{\tau}_{SM}^2=0.018$ $<<$
+$\hat{\tau}_{eBird}^2=0.266$). The expected change in log-abundance per week describe lower change in eBird ($\hat{\theta}_{eBird}=0.034$) and higher changes in standardized monitoring weekly counts ($\hat{\theta}_{SM}=0.056$).
 
 Let's predict the trajectory and change the column names for the
 figure.
@@ -1525,7 +1530,7 @@ skSM.egss.predict.init <- egss_predict(yt = ytSM1,
 colnames(skSM.egss.predict.init[[1]]) <- c("Time.t", "Estimated_SKProj_EGSS","abundance.monitored")
 ```
 
-And make the figure 2. We combine the predicted trajectories in a single
+To make the figure 2, we combine the predicted trajectories in a single
 data frame to use `tidyverse` and `ggplot`.
 
 ```{r Figure 2a}
@@ -1570,6 +1575,8 @@ FigS2a <- sk.Estimated |>
        color = "",
        shape = "",
        linetype = "")+
+  scale_x_date(breaks = seq(as.Date("2018-01-01"), as.Date(Sys.Date( )), 
+                            by = "2 months"), date_labels="%b-%y")+
     scale_color_manual(values = c("white", "#fc8d59","white", "#91bfdb"),
                        labels = c("Standardized Monitoring (SM)", 
                                   "Predicted trajectory (SM - EGSS)", 
@@ -1607,19 +1614,21 @@ lm(Estimated_SKProj_EGSS~abundance.monitored, data = sk.Estimated)
 
 FigS2b <- ggplot(sk.Estimated)+
   geom_abline(slope = 1)+
+  geom_smooth(aes(x=abundance.monitored, y=Estimated_SKProj_EGSS),
+              method = "lm", color = "#fc8d59", 
+              se = T, fill = "#fc8d5905", linetype = "dashed")+
   geom_point(aes(x=abundance.monitored, y=Estimated_SKProj_EGSS), 
              color = "black", fill = "#fc8d59", shape = 24, alpha = 0.75, size = 2)+
-  geom_smooth(aes(x=abundance.monitored, y=Estimated_SKProj_EGSS),
-              method = "lm", color = "#fc8d59", se = F, linetype = "dashed")+
 # geom_text(x = 25, y = 50, 
 #            label = lm_eqn(df = sk.Estimated,
 #                           x = sk.Estimated$abundance.monitored, 
 #                           y = sk.Estimated$Estimated_SKProj_EGSS), 
 #            parse = TRUE, color = "#fc8d59")+
+  geom_smooth(aes(x=abundance.monitored, y=Estimated_eBird_EGSS),
+              method = "lm", color = "#91bfdb", 
+              se = T, fill = "#91bfdb05", linetype = "dashed")+
   geom_point(aes(x=abundance.monitored, y=Estimated_eBird_EGSS), 
              color = "black", fill = "#91bfdb", shape = 24, alpha = 0.75, size = 2)+
-  geom_smooth(aes(x=abundance.monitored, y=Estimated_eBird_EGSS),
-              method = "lm", color = "#91bfdb", se = F, linetype = "dashed")+
 #    geom_text(x = 50, y = 0, 
 #            label = lm_eqn(df = sk.Estimated,
 #                           x = sk.Estimated$abundance.monitored, 
@@ -1646,23 +1655,20 @@ ggsave("results/Figure2ab_EstimatedTrajectory2initdays.png",
        plot = FigS2, dpi = 300, width = 10, height = 4, units = "in")
 ```
 
-![Weekly predicted (triangles) and observed (circles) high counts of the number of Snail Kites from standardized monitoring (orange) and eBird (blue). Predicted values correspond to Exponential Growth State-Space (EGSS) models fitted for the two datasets during population establishment (week 1: January 2018 to week 95: October 2019) in northcentral Florida (a). The predicted trajectory of standardized monitoring data matched closely the weekly high counts data ($y=-0.63+0.93x; R^2=0.985$), while the predicted trajectory from eBird data was far low of the identity ($y=2.3+0.075x; R^2=0.45$) compared with observed standardized monitored high counts; solid black line in (b) is the identity (1:1 relationship). *Figure 2 in Main text*](results/Figure2ab_EstimatedTrajectory2initdays.png){width=100%}
+![Weekly predicted (triangles) and observed (circles) high counts of the number of Snail Kites from standardized monitoring (orange) and eBird (blue). Predicted values correspond to Exponential Growth State-Space (EGSS) models fitted for the two datasets during population establishment (week 1: January 2018 to week 87: August 2019) in northcentral Florida (a). The predicted trajectory of standardized monitoring data matched closely the weekly high counts data ($y=-0.41+0.95x; R^2=0.985$), while the predicted trajectory from eBird data was far low of the identity ($y=2.6+0.056x; R^2=0.274$) compared with observed standardized monitored high counts; solid black line in (b) is the identity (1:1 relationship). *Figure 2 in Main text*](results/Figure2ab_EstimatedTrajectory2initdays.png){width=80%}
 
 \FloatBarrier
 
-## Three timeframe (~3, ~5, ~10) of first estimation $\hat{\phi}$
+## Three timeframe (~three, ~five, ~ten years) of first estimation $\hat{\phi}$
 
-With the estimated model parameters and the data up to almost the 2
-first years (up to week 95 with observations), we estimated the
+With the estimated model parameters and the data during establishment of the population (up to week 87 with observations, $i=1$ is week 88), we estimated the
 probability that the population declines to values below a critical
 threshold ($N_{critical}$, as the critical number of individuals to
-assume pseudoextinction), in three different periods or given timeframes
-(\~3 years $150$ weeks, \~5 years $250$ weeks, and \~10 years $500$ weeks). 
-Let assume $N_{critical} = \frac{1}{2} (e^{\bar{y}}) = 5.58$. The probability 
-of persistence ($\phi$) will be the mathematical complement of the number
-of time steps within the three different periods (150, 250, 500) that
-the population was lower than the threshold in 50,000 simulations. The
-resulting probability $\phi$ is recorded for each trajectory, estimating the
+assume quasi-extinction), in three different periods or given timeframes
+(\~three years $150$ weeks, \~five years $250$ weeks, and \~ten years $500$ weeks). 
+Let assume $N_{critical~eBird} = \frac{1}{2} (e^{\bar{y}}) = 5.58$. The probability 
+of persistence in each trajectory $m$ ($\phi_m$) will be the mathematical complement of the number of time steps within the three different periods (150, 250, 500) that
+the population was lower than the threshold. The resulting probability $\phi_m$ is recorded for each trajectory $m$ ($M = 50,000$), estimating the
 expected value ($\hat{\phi}$) and standard deviation ($\sqrt{Var(\hat{\phi})}$)
 as variability of the estimation per each week with data.
 
@@ -1690,17 +1696,17 @@ tt <- snailkites.PP |>
 tt <- tt$Time.t
 tt
 
-#the first two years length (matching SM data), or last position, where is `m`
-last.tt <- 86
+#the establishment (matching SM data) is going up to the last position
+last.tt <- 79
 
-#Define N_critical for eBird - 15% quantile
-N.critical = 1/2*mean(exp(yt))
+#Define N_critical for eBird
+N.critical = round(1/2*mean(exp(yt)),0)
 
 #number of simulations
 ntraj = 50000
 
-#last observed time (week)
-m = last(tt[1:last.tt])
+#last observed time (week 87 - August 2019)
+l = last(tt[1:last.tt])
 
 #Simulation length
 len.sim <- c(151, 251, 501)
@@ -1735,7 +1741,8 @@ for (i in seq_along(len.sim)){
      type="b", lwd=2, cex.lab=1.25, col = "#4575b4", pch = 1,
      xlim=c(min(tt), (max(tt)*3)),
      ylim=c(0,250), 
-     ylab="Population abundance", xlab="Time (week since 2018-01-01)");
+     ylab="Observed/predicted weekly high counts", 
+     xlab="Time (week since January 2018)");
   
   points(x = sk.Estimated$Time.t,
      y = sk.Estimated$Estimated_eBird_EGSS,
@@ -1759,8 +1766,8 @@ for (i in seq_along(len.sim)){
     phi[n] <- 1-(below.threshold/len)
     
         if( phi[n]>=0.5){
-      lines(m+thres.times, Pop.sim, col="#d3d3d308", lty = "solid")
-    }else{lines(m+thres.times, Pop.sim, col="#FF000008", lty = "solid")
+      lines(l+thres.times, Pop.sim, col="#d3d3d308", lty = "solid")
+    }else{lines(l+thres.times, Pop.sim, col="#FF000008", lty = "solid")
     }
   }
     #add critical value line
@@ -1777,11 +1784,13 @@ for (i in seq_along(len.sim)){
   
   #add the distribution to the plot
   #above the threshold
-  lines(x = (kde.sims$values*(ntraj/5) + m + last(thres.times)),
+  lines(x = (kde.sims$values*(ntraj/5) + 
+               l + last(thres.times)),
       y = kde.sims$grid_points,
       col="#d3d3d398", lwd=2, lty=1)
 
-    lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*(ntraj/5) + m + last(thres.times)),
+    lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*(ntraj/5) + 
+                 l + last(thres.times)),
       y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
       col="#FF000098", lwd=2, lty=1)
     
@@ -1809,8 +1818,7 @@ timelast
 phi_results
 ```
 
-We can see graphically the trajectories and the difference of $\phi$. The
-figures show the observed weekly high counts (blue circles), the fitted
+We can see graphically the trajectories and the difference of $\phi$ estimated for the week 88. The figures show the observed weekly high counts (blue circles), the fitted
 model (light blue triangles), 50,000 trajectories (lines; those with
 $\phi<0.5$ in reddish, else in gray), $N_{critical}$ as horizontal dashed
 line, and the kernel density estimates of the last point of the
@@ -1826,16 +1834,15 @@ trajectories (reddish below $N_{critical}$, else gray).
 
 ## Add the next observations, repeat model fit, projection, and $\hat{\phi}$
 
-We can add the next week of observations (week 96; ending October 2019)
+We can add the next week of observations (week 89; second week of September 2019)
 to the time-series, re-estimate model parameters as well as the
-probability of crashing below the $N_{critical}$ during the four
-timeframes (150, 250, 500 weeks). We tried to fit the OUSS model
-for this new updated data set, and decided by the density dependence
-parameter $\hat{\theta}$ to fit the EGSS model instead.
+probability of crashing below the $N_{critical}$ during the three
+timeframes (150, 250, 500 weeks). Here, users can try to fit the OUSS model the following weeks, and decided by the density dependence
+parameter $\hat{\theta}$ to fit the EGSS model instead. We provide below the example, but the main results focused on EGSS, which is the expected dynamic in this expanded population.
 
 ```{r fit model second week}
-#The next week: 95+1
-last.tt <- which(tt==96)
+#The next week: 88+1
+last.tt <- which(tt==89)
 
 yt[1:last.tt] #It was already converted to the log-abundance
 tt[1:last.tt]
@@ -1851,11 +1858,9 @@ OUSS.partial$remles
 
 The function `ouss_remle()` fit the OUSS model and estimate parameters.
 In order, the values correspond to the mean stationary distribution
-log-abundance ($\hat{\mu}_{eBird}=1.28408$); the trend parameter, rate
-to approach stationary distribution, or density dependence parameter
-($\hat{\theta}_{eBird}=0.00012$); the environmental noise
-($\hat{\sigma}^2_{SM}=0.03485$); and the observation error noise
-($\hat{\tau}^2_{SM}=0.24859$). Note that the density dependence
+log-abundance ($\hat{\mu}_{eBird}=0.99186$); the trend, speed of equilibration, rate to approach stationary distribution, or density dependence parameter ($\hat{\theta}_{eBird}=0.0000002$); the environmental noise
+($\hat{\sigma}^2_{SM}=0.03265$); and the observation error noise
+($\hat{\tau}^2_{SM}=0.26995$). Note that the density dependence
 parameter $\hat{\theta}<0.025$, which suggests density independence and the use of the EGSS model instead.
 
 ```{r select model and predict week2}
@@ -1863,7 +1868,7 @@ model <- if(OUSS.partial$remles[2] < 0.025){"EGSS"}else{"OUSS"}
 
 model
 
-#Lets fit EGSS model partial for second observation (week 96)
+#Lets fit EGSS model partial for second observation (week 89)
 EGSS.partial <- egss_remle(yt = yt[1:last.tt], 
                          tt = tt[1:last.tt],
                          fguess = guess_egss(yt = yt[1:last.tt],
@@ -1894,7 +1899,7 @@ $\hat{\phi}$ values and their standard deviation for three timeframes.
 
 ```{r Simulate trajectories, eval=FALSE}
 #eval=FALSE
-m = last(tt[1:last.tt])
+l = last(tt[1:last.tt])
 
 #save φ (SD) 
 phi_results <- list()
@@ -1916,7 +1921,8 @@ for (i in seq_along(len.sim)){
      type="b", lwd=2, cex.lab=1.25, col = "#4575b4", pch = 1,
      xlim=c(min(tt), (max(tt)*3)),
      ylim=c(0,250), 
-     ylab="Population abundance", xlab="Time (week since 2018-01-01)");
+     ylab="Observed/predicted weekly high counts", 
+     xlab="Time (week since January 2018)");
   
   points(x = sk.Estimated.1$Time.t,
      y = sk.Estimated.1$Estimated_eBird_EGSS,
@@ -1940,8 +1946,8 @@ for (i in seq_along(len.sim)){
     phi[n] <- 1-(below.threshold/len)
     
         if(phi[n]>=0.5){
-      lines(m+thres.times, Pop.sim, col="#d3d3d308", lty = "solid")
-    }else{lines(m+thres.times, Pop.sim, col="#FF000008", lty = "solid")
+      lines(l+thres.times, Pop.sim, col="#d3d3d308", lty = "solid")
+    }else{lines(l+thres.times, Pop.sim, col="#FF000008", lty = "solid")
     }
   }
     #add critical value line
@@ -1959,13 +1965,13 @@ for (i in seq_along(len.sim)){
     #add the distribution to the plot
   #above the threshold
   lines(x = (kde.sims$values*(ntraj/5) + 
-               m + 
+               l + 
                last(thres.times)),
       y = kde.sims$grid_points,
       col="#d3d3d398", lwd=2, lty=1)
 
     lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical] * 
-                 ntraj + m + last(thres.times)),
+                 ntraj + l + last(thres.times)),
       y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
       col="#FF000098", lwd=2, lty=1)
     
@@ -2003,11 +2009,11 @@ And we can see the new trajectories projected in three timeframes.
 
 ## Iterate the process
 
-### Iterate the process with eBird (some figure examples)
+### Iterate the process with eBird contrasting OUSS-EGSS (some figure examples)
 
-Let's iterate the process for some (3) periods that share data in eBird
+Let's iterate the process for some weeks that share data in eBird
 and Standardized Monitored. This is going to change the ending position;
-instead of manually change 95 to 96, we use a vector of the "ending
+instead of manually change 88 to 89, we use a vector of the "ending
 positions" and iterate from a sequence of length of that vector.
 
 ```{r iterate process eBird with some figure examples, eval=FALSE}
@@ -2036,7 +2042,7 @@ tt <- tt$Time.t
 tt
 
 # Define N_critical for eBird
-N.critical = (1/2)*mean(exp(yt))
+N.critical = round((1/2)*mean(exp(yt)), 0)
 
 # List of end positions to be used
 which(tt == 95) #week 95 - around 2019-10-22 - is position 86 in tt
@@ -2062,12 +2068,12 @@ StartTime <- Sys.time()
 for (j in seq_along(end_positions)) {
   
   last.tt <- end_positions[j]
-  m <- tt[last.tt]
+  l <- tt[last.tt]
 
   for (i in seq_along(len.sim)){
       # Set up plot for all three timeframes
   png_filename <- paste0(base_filename, 
-                         "_endpos_",m, 
+                         "_endpos_", l, 
                          "_timeframe_",(len.sim[i]-1),
                          ".png")
   png(png_filename, width = 10, height = 5, units = "in", res = 300)
@@ -2077,8 +2083,8 @@ for (j in seq_along(end_positions)) {
          type="b", lwd=2, cex.lab=1.25, col = "#4575b4", pch = 1,
          xlim=c(min(tt), (max(tt)*3)),
          ylim=c(0,250), 
-         ylab="Population abundance", 
-         xlab="Time (week since 2018-01-01)");
+         ylab="Observed/predicted weekly high counts", 
+         xlab="Time (week since January 2018)");
     
     OUSS.partial <- ouss_remle(yt = yt[1:last.tt],
                                tt = tt[1:last.tt],
@@ -2121,9 +2127,9 @@ for (j in seq_along(end_positions)) {
         phi[n] <- 1-(below.threshold/len)
         
         if(phi[n] >= 0.5){
-          lines(m+thres.times, Pop.sim, col="#d3d3d308", lty = "solid")
+          lines(l + thres.times, Pop.sim, col="#d3d3d308", lty = "solid")
           } else {
-            lines(m+thres.times, Pop.sim, col="#FF000008", lty = "solid")
+            lines(l + thres.times, Pop.sim, col="#FF000008", lty = "solid")
             }
     }
       # Add critical value line
@@ -2139,11 +2145,12 @@ for (j in seq_along(end_positions)) {
       kde.sims <- kde1d(x=last.points);
       
       # Add the distribution to the plot
-      lines(x = (kde.sims$values*(ntraj/5) + m + last(thres.times)),
+      lines(x = (kde.sims$values*(ntraj/5) + l + last(thres.times)),
             y = kde.sims$grid_points,
             col="#d3d3d398", lwd=2, lty=1)
       
-      lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*(ntraj/5) + m + last(thres.times)),
+      lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*(ntraj/5) +
+                   l + last(thres.times)),
             y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
             col="#FF000098", lwd=2, lty=1)
       
@@ -2192,9 +2199,9 @@ for (j in seq_along(end_positions)) {
         phi[n] <- 1-(below.threshold/len)
         
         if(phi[n] >= 0.5){
-          lines(m+thres.times, Pop.sim, col="#d3d3d308", lty = "solid")
+          lines(l+thres.times, Pop.sim, col="#d3d3d308", lty = "solid")
           } else {
-            lines(m+thres.times, Pop.sim, col="#FF000008", lty = "solid")
+            lines(l+thres.times, Pop.sim, col="#FF000008", lty = "solid")
             }
     }
       # Add critical value line
@@ -2210,11 +2217,12 @@ for (j in seq_along(end_positions)) {
       kde.sims <- kde1d(x=last.points);
       
       # Add the distribution to the plot
-      lines(x = (kde.sims$values*(ntraj/5) + m + last(thres.times)),
+      lines(x = (kde.sims$values*(ntraj/5) + l + last(thres.times)),
             y = kde.sims$grid_points,
             col="#d3d3d398", lwd=2, lty=1)
       
-      lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*(ntraj/5) + m + last(thres.times)),
+      lines(x = (kde.sims$values[kde.sims$grid_points <= N.critical]*(ntraj/5) + 
+                   l + last(thres.times)),
             y = kde.sims$grid_points[kde.sims$grid_points <= N.critical],
             col="#FF000098", lwd=2, lty=1)
       
@@ -2232,7 +2240,7 @@ for (j in seq_along(end_positions)) {
     dev.off()
   
   }
-  print(cbind(m, model, phi_mean, phi_SD, len.sim[i]-1))
+  print(cbind(l, model, phi_mean, phi_SD, len.sim[i]-1))
 }
 
 #time process finished
@@ -2250,11 +2258,13 @@ timelast
 
 Let's see the examples.
 
-How is changing in 5 moments $\hat{\phi}_{\sim 3\ years}$?
+How is changing in three moments $\hat{\phi}_{eBird\ \sim three\ years~simulated}$?
 
 ![week 95 - October 2019 simulated for ~3 years](supporting/FigS4_Step4_IterateTraj_10_5_endpos_95_timeframe_150.png){width=50%}
 
 ![week 211 - January 2022 simulated for ~3 years](supporting/FigS4_Step4_IterateTraj_10_5_endpos_211_timeframe_150.png){width=50%}
+
+Note that for the week 211 (January 2022) the population model fitted is the density dependence model (OUSS). However, this might be do to the fact that lower and less variable weekly high counts are similar to the initial population, misidentifying density dependence dynamic in this expanding population. We include this example to show the users how to apply the contrast for established populations (see also Section 8 - Other populations of Snail Kite).
 
 ![week 316 - January 2024 simulated for ~3 years](supporting/FigS4_Step4_IterateTraj_10_5_endpos_316_timeframe_150.png){width=50%}
 
@@ -2262,11 +2272,13 @@ How is changing in 5 moments $\hat{\phi}_{\sim 3\ years}$?
 
 #### Trajectories in timeframe of ~5 years.
 
-How is changing in 5 moments $\hat{\phi}_{\sim 5\ years}$?
+How is changing in 5 moments $\hat{\phi}_{eBird\ \sim five\ years~simulated}$?
 
 ![week 95 - October 2019 simulated for ~5 years](supporting/FigS4_Step4_IterateTraj_10_5_endpos_95_timeframe_250.png){width=50%}
 
 ![week 211 - January 2022 simulated for ~5 years](supporting/FigS4_Step4_IterateTraj_10_5_endpos_211_timeframe_250.png){width=50%}
+
+Again, it is not expected for the population to be at stationary distribution, unless we adjust a new initial population of the time series (see [Dennis & Ponciano](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/13-1486.1) for more details on the OUSS model).
 
 ![week 316 - January 2024 simulated for ~5 years](supporting/FigS4_Step4_IterateTraj_10_5_endpos_316_timeframe_250.png){width=50%}
 
@@ -2274,20 +2286,22 @@ How is changing in 5 moments $\hat{\phi}_{\sim 5\ years}$?
 
 #### Trajectories in timeframe of ~10 years.
 
-How is changing in 5 moments $\hat{\phi}_{\sim 10\ years}$?
+How is changing in 5 moments $\hat{\phi}_{eBird\ \sim ten~years~simulated}$?
 
 ![week 95 - October 2019 simulated for ~10 years](supporting/FigS4_Step4_IterateTraj_10_5_endpos_95_timeframe_500.png){width=50%}
 
 ![week 211 - January 2022 simulated for ~10 years](supporting/FigS4_Step4_IterateTraj_10_5_endpos_211_timeframe_500.png){width=50%}
 
+The pattern selected on week 211 keeps selecting OUSS, likely misidentifying density dependence from the eBird data.
+
 ![week 316 - January 2024 simulated for ~10 years](supporting/FigS4_Step4_IterateTraj_10_5_endpos_316_timeframe_500.png){width=50%}
 
 \FloatBarrier
 
-### Iterate each week to extract $\hat{\phi}$ and SD from eBird (no figures)
+### Iterate each week to extract $\hat{\phi}$ and SD from eBird contrasting OUSS-EGSS (no figures)
 
-```{r iterate process eBird NO figures but data, eval=FALSE}
-#Change at the end to `{r eval=FALSE}`; it migh take long time
+```{r iterate process eBird contrasting OUSS-EGSS, eval=FALSE}
+#Change at the end to `{r eval=FALSE}`; it might take long time
 
 #the data
 snailkites.PP <- readRDS("data_tmp/snailkitesPP.rds")
@@ -2305,7 +2319,7 @@ yt <- yt$Observed.y
 yt
 
 # Define N_critical for eBird
-N.critical = (1/2)*mean(exp(yt))
+N.critical = round((1/2)*mean(exp(yt)),0)
 
 tt <- snailkites.PP |>
   ungroup() |>
@@ -2318,15 +2332,15 @@ tt <- tt$Time.t
 tt
 
 #the first two years length
-last.tt <- 95 
+last.tt <- 87 
 
 #Number of trajectories and bootstraps (CIs)
 ntraj = 50000
 
 # End positions to modeling (steps)
-end_positions <- which(tt >= 95)
+end_positions <- which(tt > last.tt)
 
-#check weeks selected as `end_positions`
+#check weeks ID selected as `end_positions`
 tt[end_positions]
 
 #save φ (SD) 
@@ -2341,7 +2355,7 @@ StartTime <- Sys.time()
 for (j in seq_along(end_positions)) {
   
   last.tt <- end_positions[j]
-  m <- tt[last.tt]
+  l <- tt[last.tt]
 
   for (i in seq_along(len.sim)){
     
@@ -2419,7 +2433,7 @@ for (j in seq_along(end_positions)) {
       
     }
   }
-  print(cbind(m, model, 
+  print(cbind(l, model, 
               phi_mean,
               phi_SD, 
               len.sim[i]-1))
@@ -2432,14 +2446,159 @@ timelast <- EndTime-StartTime
 timelast
 ```
 
-![Iterating all](data_raw/IterateAllNoFigs.png){width=50%}
+![Iterating all](data_raw/IterateAll_eBird_NoFigs.png){width=50%}
 
 \...
 
-![Iterating all](data_raw/IterateAllNoFigs2.png){width=50%}
+![Iterating all](data_raw/IterateAll_eBird_NoFigs2.png){width=50%}
 
 This is a longer process ($\sim9$ hours; currently is `{r eval=FALSE}`), so
 we save the `phi_results` (with `phi_mean` and `phi_SD`), and `modelSS` vectors as data frames to make a plot.
+
+```{r extracting results phi estimation ebird in df contrasting OUSS and EGSS, eval=FALSE}
+#creating data frames for phi_mean, phi_SD, and modelSS
+phi_eBird_df <- do.call(rbind, lapply(seq_along(phi_results), function(j) {
+  do.call(rbind, lapply(seq_along(phi_results[[j]]), function(i) {
+    data.frame(
+      Time.t = tt[end_positions[j]],
+      Timeframe = timeframes[i],
+      phi.hat = phi_results[[j]][[i]][1],
+      SD.phi = phi_results[[j]][[i]][2],
+      Model = modelSS[[j]][[i]]
+    )
+  }))
+}))
+
+# Convert to factors for better plotting
+phi_eBird_df$Timeframe <- factor(phi_eBird_df$Timeframe, levels = timeframes)
+head(phi_eBird_df, n = 12)
+
+saveRDS(phi_eBird_df, "results/phi_hat_SD_eBird_OUSS_EGSS.rds")
+```
+
+![head screenshot of eBird phi estimations](data_raw/eBird_phi_hat_SD_head.png){width=50%}
+
+\FloatBarrier
+
+
+### Iterate each week to extract $\hat{\phi}$ and SD from eBird only EGSS (no figures)
+
+```{r iterate process eBird NO figures but data, eval=FALSE}
+#Change at the end to `{r eval=FALSE}`; it might take long time
+
+#the data
+snailkites.PP <- readRDS("data_tmp/snailkitesPP.rds")
+
+#Log observations for the entire data set
+yt = snailkites.PP |>
+  ungroup() |>
+  arrange(Time.t) |>
+  drop_na(Observed.y) |>
+  select(Observed.y) |>
+  log()
+
+#Vector form
+yt <- yt$Observed.y
+yt
+
+# Define N_critical for eBird
+N.critical = round((1/2)*mean(exp(yt)),0)
+
+tt <- snailkites.PP |>
+  ungroup() |>
+  arrange(Time.t) |>
+  drop_na(Observed.y) |>
+  select(Time.t)
+
+#Time vector of the time series
+tt <- tt$Time.t
+tt
+
+#the first two years length
+last.tt <- 87 
+
+#Number of trajectories and bootstraps (CIs)
+ntraj = 50000
+
+# End positions to modeling (steps)
+end_positions <- which(tt > last.tt)
+
+#check weeks ID selected as `end_positions`
+tt[end_positions]
+
+#save φ (SD) 
+phi_results <- vector("list", length = length(end_positions))
+
+#save model used
+modelSS <- vector("list", length = length(end_positions))
+
+# Start process timing
+StartTime <- Sys.time()
+
+for (j in seq_along(end_positions)) {
+  
+  last.tt <- end_positions[j]
+  l <- tt[last.tt]
+
+  for (i in seq_along(len.sim)){
+    
+    model <- "EGSS"
+    
+    modelSS[[j]][[timeframes[i]]] <- model
+    
+      EGSS.partial <- egss_remle(yt = yt[1:last.tt],
+                                 tt = tt[1:last.tt],
+                                 fguess = guess_egss(yt = yt[1:last.tt],
+                                                     tt = tt[1:last.tt]));
+      
+      thres.times <- as.numeric(0:(len.sim[i]-1))
+      len <- max(thres.times) + 1
+      
+      sim.mat.eBird <- egss_sim(ntraj, 
+                                tt = thres.times, 
+                                parms = EGSS.partial$remles)
+      
+      phi <- rep(0, ntraj)
+      last.points <- rep(0, ntraj)
+      
+      for(n in 1:ntraj){
+        Pop.sim <- exp(c(yt[last.tt], sim.mat.eBird[-1,n]));
+        last.points[n] <- Pop.sim[len] 
+      
+      # How many times each trajectory go below the threshold?
+        below.threshold <- sum(Pop.sim < N.critical)
+        phi[n] <- 1-(below.threshold/len)
+      }
+      
+      #Expected value of probability of local persistence, and SD
+      phi_mean <- mean(phi)
+      phi_SD <- sqrt(var(phi))
+  
+      phi_results[[j]][[timeframes[i]]] <- cbind(phi_mean,phi_SD)
+      
+    
+  }
+  print(cbind(l, model, 
+              phi_mean,
+              phi_SD, 
+              len.sim[i]-1))
+}
+
+#time process finished
+EndTime <- Sys.time()
+#difference of time (time lasted in the process)
+timelast <- EndTime-StartTime
+timelast
+```
+
+![Iterating all](data_raw/IterateAll_eBird_NoFigs_EGSS.png){width=50%}
+
+\...
+
+![Iterating all](data_raw/IterateAll_eBird_NoFigs_EGSS2.png){width=50%}
+
+This is a longer process ($\sim10$ hours; currently is `{r eval=FALSE}`), so
+we saved the `phi_results` (with `phi_mean` and `phi_SD`), and `modelSS` vectors as data frames to make a plot.
 
 ```{r extracting results phi estimation ebird in df, eval=FALSE}
 #creating data frames for phi_mean, phi_SD, and modelSS
@@ -2462,9 +2621,10 @@ head(phi_eBird_df, n = 12)
 saveRDS(phi_eBird_df, "results/phi_hat_SD_eBird.rds")
 ```
 
-![head screenshot of eBird phi estimations](data_raw/eBird_phi_hat_SD_head.png){width=50%}
+![head screenshot of eBird phi estimations](data_raw/eBird_phi_hat_SD_head_EGSS.png){width=50%}
 
 \FloatBarrier
+
 
 ### Iterate the process with Standardized Monitoring data (figure examples)
 
@@ -2486,7 +2646,7 @@ ytSM <- ytSM$abundance.monitored
 ytSM
 
 #N crticial
-N.criticalSM <- (1/2)*mean(exp(ytSM))
+N.criticalSM <- round((1/2)*mean(exp(ytSM)),0)
 
 ttSM <- snailkites.PP |>
   ungroup() |>
@@ -2507,7 +2667,7 @@ And run the model
 ntraj =50000
 
 # End positions to modeling (steps)
-end_positions <- which(ttSM >= 95)
+end_positions <- which(ttSM >= 88)
 
 #actual weeks
 ttSM[end_positions]
@@ -2527,12 +2687,12 @@ StartTime <- Sys.time()
 for (j in seq_along(end_positions)) {
   
   last.tt <- end_positions[j]
-  m <- ttSM[last.tt]
+  l <- ttSM[last.tt]
 
   for (i in seq_along(len.sim)){
       # Set up plot for all three timeframes
   png_filename <- paste0(base_filename, 
-                         "_endpos_",m, 
+                         "_endpos_",l, 
                          "_timeframe_",(len.sim[i]-1),
                          ".png")
   png(png_filename, width = 10, height = 5, units = "in", res = 300)
@@ -2543,8 +2703,8 @@ for (j in seq_along(end_positions)) {
          type="b", lwd=2, cex.lab=1.25, col = "#d73027", pch = 1,
          xlim=c(min(tt), (max(tt)*3)),
          ylim=c(0,250), 
-         ylab="Population abundance", 
-         xlab="Time (week since 2018-01-01)");
+         ylab="Observed/predicted weekly high counts", 
+         xlab="Time (week since January 2018)");
     
     OUSS.partial <- ouss_remle(yt = ytSM[1:last.tt],
                                tt = ttSM[1:last.tt],
@@ -2587,9 +2747,9 @@ for (j in seq_along(end_positions)) {
         phi[n] <- 1-(below.threshold/len)
         
         if(phi[n] >= 0.5){
-          lines(m+thres.times, Pop.sim, col="#d3d3d308", lty = "solid")
+          lines(l+thres.times, Pop.sim, col="#d3d3d308", lty = "solid")
           } else {
-            lines(m+thres.times, Pop.sim, col="#FF000008", lty = "solid")
+            lines(l+thres.times, Pop.sim, col="#FF000008", lty = "solid")
             }
     }
       # Add critical value line
@@ -2605,11 +2765,12 @@ for (j in seq_along(end_positions)) {
       kde.sims <- kde1d(x=last.points);
       
       # Add the distribution to the plot
-      lines(x = (kde.sims$values*(ntraj/5) + m + last(thres.times)),
+      lines(x = (kde.sims$values*(ntraj/5) + l + last(thres.times)),
             y = kde.sims$grid_points,
             col="#d3d3d398", lwd=2, lty=1)
       
-      lines(x = (kde.sims$values[kde.sims$grid_points <= N.criticalSM]*(ntraj/5) + m + last(thres.times)),
+      lines(x = (kde.sims$values[kde.sims$grid_points <= N.criticalSM]*(ntraj/5) + 
+                   l + last(thres.times)),
             y = kde.sims$grid_points[kde.sims$grid_points <= N.criticalSM],
             col="#FF000098", lwd=2, lty=1)
       
@@ -2658,9 +2819,9 @@ for (j in seq_along(end_positions)) {
         phi[n] <- 1-(below.threshold/len)
         
         if(phi[n] >= 0.5){
-          lines(m+thres.times, Pop.sim, col="#d3d3d308", lty = "solid")
+          lines(l+thres.times, Pop.sim, col="#d3d3d308", lty = "solid")
           } else {
-            lines(m+thres.times, Pop.sim, col="#FF000008", lty = "solid")
+            lines(l+thres.times, Pop.sim, col="#FF000008", lty = "solid")
             }
     }
       # Add critical value line
@@ -2676,11 +2837,12 @@ for (j in seq_along(end_positions)) {
       kde.sims <- kde1d(x=last.points);
       
       # Add the distribution to the plot
-      lines(x = (kde.sims$values*(ntraj/5) + m + last(thres.times)),
+      lines(x = (kde.sims$values*(ntraj/5) + l + last(thres.times)),
             y = kde.sims$grid_points,
             col="#d3d3d398", lwd=2, lty=1)
       
-      lines(x = (kde.sims$values[kde.sims$grid_points <= N.criticalSM]*(ntraj/5) + m + last(thres.times)),
+      lines(x = (kde.sims$values[kde.sims$grid_points <= N.criticalSM]*(ntraj/5) + 
+                   l + last(thres.times)),
             y = kde.sims$grid_points[kde.sims$grid_points <= N.criticalSM],
             col="#FF000098", lwd=2, lty=1)
       
@@ -2698,7 +2860,7 @@ for (j in seq_along(end_positions)) {
     dev.off()
   
   }
-  print(cbind(m, model, 
+  print(cbind(l, model, 
               phi_mean,
               phi_SD, 
               len.sim[i]-1))
@@ -2709,6 +2871,10 @@ EndTime <- Sys.time()
 timelast <- EndTime-StartTime
 timelast
 ```
+
+![head screenshot of eBird phi estimations](data_raw/SM_phi_hat_SD_head.png){width=50%}
+
+![head screenshot of eBird phi estimations](data_raw/SM_phi_hat_SD_head2.png){width=50%}
 
 Now we save the `phi_results` and `modelSS` vectors as data
 frames to make a plot.
@@ -2740,7 +2906,7 @@ saveRDS(phi_SM_df, "results/phi_hat_SD_SM.rds")
 
 Let's see the examples.
 
-How is changing in 3 moments $\hat{\phi}_{\sim 3\ years}$?
+How is changing in 3 moments $\hat{\phi}_{SM\ \sim three~years~simulated}$?
 
 ![Standardized monitoring - week 95 - October 2019 simulated for ~3 years](supporting/FigS5_IterateTrajSM_10_5_endpos_95_timeframe_150.png){width=50%}
 
@@ -2752,7 +2918,7 @@ How is changing in 3 moments $\hat{\phi}_{\sim 3\ years}$?
 
 #### Trajectories in timeframe of ~5 years.
 
-How is changing in 3 moments $\hat{\phi}_{\sim 5\ years}$?
+How is changing in 3 moments $\hat{\phi}_{SM\ \sim five~years~simulated}$?
 
 ![Standardized monitoring - week 95 - October 2019 simulated for ~5 years](supporting/FigS5_IterateTrajSM_10_5_endpos_95_timeframe_250.png){width=50%}
 
@@ -2764,7 +2930,7 @@ How is changing in 3 moments $\hat{\phi}_{\sim 5\ years}$?
 
 #### Trajectories in timeframe of ~10 years.
 
-How is changing in 3 moments $\hat{\phi}_{\sim 3\ years}$?
+How is changing in 3 moments $\hat{\phi}_{SM\ \sim ten~years~simulated}$?
 
 ![Standardized monitoring - week 95 - October 2019 simulated for ~10 years](supporting/FigS5_IterateTrajSM_10_5_endpos_95_timeframe_500.png){width=50%}
 
@@ -2782,13 +2948,15 @@ Call the data and establish transformation of second Y-axis (supplementary figur
 #Load data saved
   #data organized
   snailkites.PP <- readRDS("data_tmp/snailkitesPP.rds")
-  #local persistence from eBird
+  #local persistence from eBird - OUSS or EGSS
+  phi.eBird.OUSS.EGSS <- readRDS("results/phi_hat_SD_eBird_OUSS_EGSS.rds") 
+  #local persistence from eBird - EGSS
   phi.eBird <- readRDS("results/phi_hat_SD_eBird.rds") 
   #local persistence from Standardized Monitored
   phi.SM <-readRDS("results/phi_hat_SD_SM.rds")
   
-  N.critical <- 5.58104 # 1/2 empirical K = 1/2 mean(exp(yt))
-  N.criticalSM <- 32.05102 # 1/2 empirical K = 1/2 mean(exp(ytSM))
+  N.critical <- 6 # 1/2*empirical K = 1/2 mean(exp(yt))
+  N.criticalSM <- 32 # 1/2*empirical K = 1/2 mean(exp(ytSM))
 
 #coefficient to convert second Y-axis
 coeff <- 100
@@ -2799,11 +2967,19 @@ We can compare the overlap of $\phi$ estimation. First we combine the `phi.eBird
 
 ```{r combine phi eBird and phi SK project}
 head(phi.eBird)
+head(phi.eBird.OUSS.EGSS)
 head(phi.SM)
 
 #combine phi dataframes
 phi_combined <- phi.eBird |>
-  full_join(phi.SM)
+  bind_rows(.id = "dataset", phi.eBird.OUSS.EGSS) |> 
+  mutate(dataset = case_when(dataset == 1~"eBird.EGSS",
+                             dataset != 1~"eBird.OUSS.EGSS")) |>
+  bind_rows(.id = "original.dataset", phi.SM) |> 
+  mutate(original.dataset = case_when(original.dataset == 1~"eBird",
+                             original.dataset != 1~"SM"),
+         dataset = case_when(original.dataset == "SM"~"SM",
+                                   original.dataset != "SM"~dataset))
 
 head(phi_combined)
 ```
@@ -2813,9 +2989,15 @@ Then, we add the dates and filter by the three Timeframes
 ```{r figure 3a}
 #add dates while filtering Timeframe
 phi_data_plot <- datesPP |> 
-  left_join(phi_combined|> filter(Timeframe == "150 weeks or ~3 years")) |>
+  left_join(phi_combined |> 
+              filter(Timeframe == "150 weeks or ~3 years")) |>
   ungroup() |>
-  pivot_longer(cols = !c(Timeframe, Time.t, observation.date, Model),
+  pivot_longer(cols = !c(Timeframe, 
+                         Time.t, 
+                         observation.date, 
+                         Model,
+                         original.dataset,
+                         dataset),
                names_to = "group",
                values_to = "phi_values") |> 
   drop_na(phi_values)
@@ -2823,20 +3005,31 @@ phi_data_plot <- datesPP |>
 phi_data_plot
 
 #Ribbon lo-hi phi (SD) for the two datasets
+#eBird EGSS
 ribbon_phi_eBird <- phi_data_plot |>
-  filter(group %in% c("phi.hat", "SD.phi")) |>
+  filter(dataset == "eBird.EGSS",
+         group %in% c("phi.hat", "SD.phi")) |>
+  pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean}) |>
+  mutate(phi_values = phi.hat)
+
+#eBird OUSS vs EGSS
+ribbon_phi_eBird_OUSSEGSS <- phi_data_plot |>
+  filter(dataset == "eBird.OUSS.EGSS",
+         group %in% c("phi.hat", "SD.phi")) |>
   pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean}) |>
   mutate(phi_values = phi.hat)
 
 ribbon_phi_SM <- phi_data_plot |>
-  filter(group %in% c("phi.hatSM", "SD.phiSM")) |>
+  filter(dataset == "SM",
+         group %in% c("phi.hatSM", "SD.phiSM")) |>
   pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean})|>
   mutate(phi_values = phi.hatSM)
 
-#Figure overlap phi
-Figure3a <- ggplot(phi_data_plot, 
-                aes(x = observation.date, y = phi_values)) +
-  geom_vline(xintercept = snailkites.PP$observation.date[86], 
+#three trends
+FigOUSS_A <- ggplot(phi_data_plot, 
+       aes(x = observation.date, y = phi_values)) +
+  facet_grid(~dataset)+
+  geom_vline(xintercept = snailkites.PP$observation.date[78], 
              color = "gray", linetype = "dotted") +
   geom_ribbon(data = ribbon_phi_SM,
               aes(ymin = phi_values+SD.phiSM, 
@@ -2845,7 +3038,11 @@ Figure3a <- ggplot(phi_data_plot,
   geom_ribbon(data = ribbon_phi_eBird,
               aes(ymin = phi_values+SD.phi, 
                   ymax = phi_values-SD.phi),
-              fill = "#91bfdb25") +
+              fill = "#91bfdb25")+
+  geom_ribbon(data = ribbon_phi_eBird_OUSSEGSS,
+              aes(ymin = phi_values+SD.phi, 
+                  ymax = phi_values-SD.phi),
+              fill = "#91bfdb25")+
   geom_line(data = phi_data_plot |> 
                filter(group %in% c("phi.hat", "phi.hatSM")),
             aes(color = group), linetype = "dashed") +
@@ -2859,15 +3056,67 @@ Figure3a <- ggplot(phi_data_plot,
        tag = expression(bold("(a)")),
        title = "Timeframe: 150 weeks or ~3 years")  +
   coord_cartesian(ylim = c(0, 1))+
-  scale_x_date(limits = c(snailkites.PP$observation.date[86],
+  scale_x_date(limits = c(snailkites.PP$observation.date[78],
                           max(snailkites.PP$observation.date)),
                breaks = seq(as.Date("2018-01-01"), as.Date(Sys.Date( )), 
-                            by = "6 months"), date_labels="%b-%y")+
+                            by = "10 months"), date_labels="%b-%y")+
   scale_color_manual(values = c("#91bfdb95",
                                 "#fc8d5995"),
                      labels = c(expression(italic(phi)[eBird]),
                                 expression(italic(phi)[SM])))+
-  theme_classic() +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.position = c(0.85, 0.85),
+        legend.spacing.y = unit(-0.5, "cm"),
+        legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black"))+
+  guides(color = guide_legend(ncol=2),
+         shape = guide_legend(ncol=2))
+
+FigOUSS_A
+
+#Only EGSS comparison
+
+#Figure overlap phi
+Figure3a <- ggplot(phi_data_plot, 
+                aes(x = observation.date, y = phi_values)) +
+  geom_vline(xintercept = snailkites.PP$observation.date[78], 
+             color = "gray", linetype = "dotted") +
+  geom_ribbon(data = ribbon_phi_SM,
+              aes(ymin = phi_values+SD.phiSM, 
+                  ymax = phi_values-SD.phiSM),
+              fill = "#fc8d5925") +
+  geom_ribbon(data = ribbon_phi_eBird,
+              aes(ymin = phi_values+SD.phi, 
+                  ymax = phi_values-SD.phi),
+              fill = "#91bfdb25") +
+  geom_line(data = phi_data_plot |> 
+               filter(dataset != "eBird.OUSS.EGSS",
+                      group %in% c("phi.hat", "phi.hatSM")),
+            aes(color = group), linetype = "dashed") +
+  geom_point(data = phi_data_plot |> 
+               filter(dataset != "eBird.OUSS.EGSS",
+                      group %in% c("phi.hat", "phi.hatSM")),
+             aes(color = group, fill = group),
+             size = 2, shape = 21) +
+  labs(x = "Observation date",
+       y = expression(italic(phi)),
+       tag = expression(bold("(a)")),
+       title = "Timeframe: 150 weeks or ~3 years")  +
+  coord_cartesian(ylim = c(0, 1))+
+  scale_x_date(limits = c(snailkites.PP$observation.date[78],
+                          max(snailkites.PP$observation.date)),
+               breaks = seq(as.Date("2018-01-01"), as.Date(Sys.Date( )), 
+                            by = "10 months"), date_labels="%b-%y")+
+  scale_color_manual(values = c("#91bfdb95",
+                                "#fc8d5995"),
+                     labels = c(expression(italic(phi)[eBird]),
+                                expression(italic(phi)[SM])))+
+  scale_fill_manual(values = c("#91bfdb75",
+                                "#fc8d5975"),
+                     labels = c(expression(italic(phi)[eBird]),
+                                expression(italic(phi)[SM])))+
+  theme_bw() +
   theme(legend.title = element_blank(),
         legend.position = c(0.85, 0.85),
         legend.spacing.y = unit(-0.5, "cm"),
@@ -2885,27 +3134,44 @@ Figure3a
 phi_data_plot <- datesPP |> 
   left_join(phi_combined|> filter(Timeframe == "250 weeks or ~5 years")) |>
   ungroup() |>
-  pivot_longer(cols = !c(Timeframe, Time.t, observation.date, Model),
+  pivot_longer(cols = !c(Timeframe, 
+                         Time.t, 
+                         observation.date, 
+                         Model,
+                         original.dataset,
+                         dataset),
                names_to = "group",
                values_to = "phi_values") |> 
   drop_na(phi_values)
   
-#Ribbon lo-hi phi
+phi_data_plot
+
+#Ribbon lo-hi phi (SD) for the two datasets
+#eBird EGSS
 ribbon_phi_eBird <- phi_data_plot |>
-  filter(group %in% c("phi.hat", "SD.phi")) |>
+  filter(dataset == "eBird.EGSS",
+         group %in% c("phi.hat", "SD.phi")) |>
+  pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean}) |>
+  mutate(phi_values = phi.hat)
+
+#eBird OUSS vs EGSS
+ribbon_phi_eBird_OUSSEGSS <- phi_data_plot |>
+  filter(dataset == "eBird.OUSS.EGSS",
+         group %in% c("phi.hat", "SD.phi")) |>
   pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean}) |>
   mutate(phi_values = phi.hat)
 
 ribbon_phi_SM <- phi_data_plot |>
-  filter(group %in% c("phi.hatSM", "SD.phiSM")) |>
+  filter(dataset == "SM",
+         group %in% c("phi.hatSM", "SD.phiSM")) |>
   pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean})|>
   mutate(phi_values = phi.hatSM)
 
-#Figure overlap phi
-
-Figure3b <- ggplot(phi_data_plot, 
-                aes(x = observation.date, y = phi_values)) +
-  geom_vline(xintercept = snailkites.PP$observation.date[86], 
+#three trends
+FigOUSS_B <- ggplot(phi_data_plot, 
+       aes(x = observation.date, y = phi_values)) +
+  facet_grid(~dataset)+
+  geom_vline(xintercept = snailkites.PP$observation.date[78], 
              color = "gray", linetype = "dotted") +
   geom_ribbon(data = ribbon_phi_SM,
               aes(ymin = phi_values+SD.phiSM, 
@@ -2914,7 +3180,11 @@ Figure3b <- ggplot(phi_data_plot,
   geom_ribbon(data = ribbon_phi_eBird,
               aes(ymin = phi_values+SD.phi, 
                   ymax = phi_values-SD.phi),
-              fill = "#91bfdb25") +
+              fill = "#91bfdb25")+
+  geom_ribbon(data = ribbon_phi_eBird_OUSSEGSS,
+              aes(ymin = phi_values+SD.phi, 
+                  ymax = phi_values-SD.phi),
+              fill = "#91bfdb25")+
   geom_line(data = phi_data_plot |> 
                filter(group %in% c("phi.hat", "phi.hatSM")),
             aes(color = group), linetype = "dashed") +
@@ -2928,17 +3198,67 @@ Figure3b <- ggplot(phi_data_plot,
        tag = expression(bold("(b)")),
        title = "Timeframe: 250 weeks or ~5 years")  +
   coord_cartesian(ylim = c(0, 1))+
-  scale_x_date(limits = c(snailkites.PP$observation.date[86],
+  scale_x_date(limits = c(snailkites.PP$observation.date[78],
                           max(snailkites.PP$observation.date)),
                breaks = seq(as.Date("2018-01-01"), as.Date(Sys.Date( )), 
-                            by = "6 months"), date_labels="%b-%y")+
+                            by = "10 months"), date_labels="%b-%y")+
   scale_color_manual(values = c("#91bfdb95",
                                 "#fc8d5995"),
                      labels = c(expression(italic(phi)[eBird]),
                                 expression(italic(phi)[SM])))+
-  theme_classic() +
+  theme_bw() +
   theme(legend.title = element_blank(),
-        legend.position = "none")
+        legend.position = "none",
+        legend.spacing.y = unit(-0.5, "cm"),
+        legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black"))+
+  guides(color = guide_legend(ncol=2),
+         shape = guide_legend(ncol=2))
+FigOUSS_B
+
+#Only EGSS comparison
+
+#Figure overlap phi
+Figure3b <- ggplot(phi_data_plot, 
+                aes(x = observation.date, y = phi_values)) +
+  geom_vline(xintercept = snailkites.PP$observation.date[78], 
+             color = "gray", linetype = "dotted") +
+  geom_ribbon(data = ribbon_phi_SM,
+              aes(ymin = phi_values+SD.phiSM, 
+                  ymax = phi_values-SD.phiSM),
+              fill = "#fc8d5925") +
+  geom_ribbon(data = ribbon_phi_eBird,
+              aes(ymin = phi_values+SD.phi, 
+                  ymax = phi_values-SD.phi),
+              fill = "#91bfdb25") +
+  geom_line(data = phi_data_plot |> 
+               filter(dataset != "eBird.OUSS.EGSS",
+                      group %in% c("phi.hat", "phi.hatSM")),
+            aes(color = group), linetype = "dashed") +
+  geom_point(data = phi_data_plot |> 
+               filter(dataset != "eBird.OUSS.EGSS",
+                      group %in% c("phi.hat", "phi.hatSM")),
+             aes(color = group, fill = group),
+             size = 2, shape = 21) +
+  labs(x = "Observation date",
+       y = expression(italic(phi)),
+       tag = expression(bold("(b)")),
+       title = "Timeframe: 250 weeks or ~5 years")  +
+  coord_cartesian(ylim = c(0, 1))+
+  scale_x_date(limits = c(snailkites.PP$observation.date[78],
+                          max(snailkites.PP$observation.date)),
+               breaks = seq(as.Date("2018-01-01"), as.Date(Sys.Date( )), 
+                            by = "10 months"), date_labels="%b-%y")+
+  scale_color_manual(values = c("#91bfdb95",
+                                "#fc8d5995"),
+                     labels = c(expression(italic(phi)[eBird]),
+                                expression(italic(phi)[SM])))+
+  scale_fill_manual(values = c("#91bfdb75",
+                                "#fc8d5975"),
+                     labels = c(expression(italic(phi)[eBird]),
+                                expression(italic(phi)[SM])))+
+  theme_bw() +
+  theme(legend.position = "none")
 
 Figure3b
 ```
@@ -2949,27 +3269,44 @@ Figure3b
 phi_data_plot <- datesPP |> 
   left_join(phi_combined|> filter(Timeframe == "500 weeks or ~10 years")) |>
   ungroup() |>
-  pivot_longer(cols = !c(Timeframe, Time.t, observation.date, Model),
+  pivot_longer(cols = !c(Timeframe, 
+                         Time.t, 
+                         observation.date, 
+                         Model,
+                         original.dataset,
+                         dataset),
                names_to = "group",
                values_to = "phi_values") |> 
   drop_na(phi_values)
   
-#Ribbon lo-hi phi
+phi_data_plot
+
+#Ribbon lo-hi phi (SD) for the two datasets
+#eBird EGSS
 ribbon_phi_eBird <- phi_data_plot |>
-  filter(group %in% c("phi.hat", "SD.phi")) |>
+  filter(dataset == "eBird.EGSS",
+         group %in% c("phi.hat", "SD.phi")) |>
+  pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean}) |>
+  mutate(phi_values = phi.hat)
+
+#eBird OUSS vs EGSS
+ribbon_phi_eBird_OUSSEGSS <- phi_data_plot |>
+  filter(dataset == "eBird.OUSS.EGSS",
+         group %in% c("phi.hat", "SD.phi")) |>
   pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean}) |>
   mutate(phi_values = phi.hat)
 
 ribbon_phi_SM <- phi_data_plot |>
-  filter(group %in% c("phi.hatSM", "SD.phiSM")) |>
+  filter(dataset == "SM",
+         group %in% c("phi.hatSM", "SD.phiSM")) |>
   pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean})|>
   mutate(phi_values = phi.hatSM)
 
-#Figure overlap phi
-
-Figure3c <- ggplot(phi_data_plot, 
-                aes(x = observation.date, y = phi_values)) +
-  geom_vline(xintercept = snailkites.PP$observation.date[86], 
+#three trends
+FigOUSS_C <- ggplot(phi_data_plot, 
+       aes(x = observation.date, y = phi_values)) +
+  facet_grid(~dataset)+
+  geom_vline(xintercept = snailkites.PP$observation.date[78], 
              color = "gray", linetype = "dotted") +
   geom_ribbon(data = ribbon_phi_SM,
               aes(ymin = phi_values+SD.phiSM, 
@@ -2978,7 +3315,11 @@ Figure3c <- ggplot(phi_data_plot,
   geom_ribbon(data = ribbon_phi_eBird,
               aes(ymin = phi_values+SD.phi, 
                   ymax = phi_values-SD.phi),
-              fill = "#91bfdb25") +
+              fill = "#91bfdb25")+
+  geom_ribbon(data = ribbon_phi_eBird_OUSSEGSS,
+              aes(ymin = phi_values+SD.phi, 
+                  ymax = phi_values-SD.phi),
+              fill = "#91bfdb25")+
   geom_line(data = phi_data_plot |> 
                filter(group %in% c("phi.hat", "phi.hatSM")),
             aes(color = group), linetype = "dashed") +
@@ -2992,22 +3333,88 @@ Figure3c <- ggplot(phi_data_plot,
        tag = expression(bold("(c)")),
        title = "Timeframe: 500 weeks or ~10 years")  +
   coord_cartesian(ylim = c(0, 1))+
-  scale_x_date(limits = c(snailkites.PP$observation.date[86],
+  scale_x_date(limits = c(snailkites.PP$observation.date[78],
                           max(snailkites.PP$observation.date)),
                breaks = seq(as.Date("2018-01-01"), as.Date(Sys.Date( )), 
-                            by = "6 months"), date_labels="%b-%y")+
+                            by = "10 months"), date_labels="%b-%y")+
   scale_color_manual(values = c("#91bfdb95",
                                 "#fc8d5995"),
                      labels = c(expression(italic(phi)[eBird]),
                                 expression(italic(phi)[SM])))+
-  theme_classic() +
+  theme_bw() +
   theme(legend.title = element_blank(),
-        legend.position = "none")
+        legend.position = "none",
+        legend.spacing.y = unit(-0.5, "cm"),
+        legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black"))+
+  guides(color = guide_legend(ncol=2),
+         shape = guide_legend(ncol=2))
+FigOUSS_C
+
+#Only EGSS comparison
+
+#Figure overlap phi
+Figure3c <- ggplot(phi_data_plot, 
+                aes(x = observation.date, y = phi_values)) +
+  geom_vline(xintercept = snailkites.PP$observation.date[78], 
+             color = "gray", linetype = "dotted") +
+  geom_ribbon(data = ribbon_phi_SM,
+              aes(ymin = phi_values+SD.phiSM, 
+                  ymax = phi_values-SD.phiSM),
+              fill = "#fc8d5925") +
+  geom_ribbon(data = ribbon_phi_eBird,
+              aes(ymin = phi_values+SD.phi, 
+                  ymax = phi_values-SD.phi),
+              fill = "#91bfdb25") +
+  geom_line(data = phi_data_plot |> 
+               filter(dataset != "eBird.OUSS.EGSS",
+                      group %in% c("phi.hat", "phi.hatSM")),
+            aes(color = group), linetype = "dashed") +
+  geom_point(data = phi_data_plot |> 
+               filter(dataset != "eBird.OUSS.EGSS",
+                      group %in% c("phi.hat", "phi.hatSM")),
+             aes(color = group, fill = group),
+             size = 2, shape = 21) +
+  labs(x = "Observation date",
+       y = expression(italic(phi)),
+       tag = expression(bold("(c)")),
+       title = "Timeframe: 500 weeks or ~10 years")  +
+  coord_cartesian(ylim = c(0, 1))+
+  scale_x_date(limits = c(snailkites.PP$observation.date[78],
+                          max(snailkites.PP$observation.date)),
+               breaks = seq(as.Date("2018-01-01"), as.Date(Sys.Date( )), 
+                            by = "10 months"), date_labels="%b-%y")+
+  scale_color_manual(values = c("#91bfdb95",
+                                "#fc8d5995"),
+                     labels = c(expression(italic(phi)[eBird]),
+                                expression(italic(phi)[SM])))+
+  scale_fill_manual(values = c("#91bfdb75",
+                                "#fc8d5975"),
+                     labels = c(expression(italic(phi)[eBird]),
+                                expression(italic(phi)[SM])))+
+  theme_bw() +
+  theme(legend.position = "none")
 
 Figure3c
 ```
 
-And combine the Figure 3
+And combine the figures
+
+```{r exporting Figure 3 - extended figure}
+#and combine in the figure
+Figure3Ext <- grid.arrange(FigOUSS_A, FigOUSS_B, FigOUSS_C, 
+                          ncol = 1)
+
+#lets saved it with good proportions
+ggsave("results/Figure3_Extended_OUSS_EGSS_3-5-10yrsSimulated.pdf", 
+       plot = Figure3Ext, dpi = 300, width = 12, height = 9, units = "in")
+
+ggsave("results/Figure3_Extended_OUSS_EGSS_3-5-10yrsSimulated.png", 
+       plot = Figure3Ext, dpi = 300, width = 12, height = 9, units = "in")
+```
+
+![Estimated local persistence probability ($\hat{\phi}$ +/- standard deviation) during ~5 years of monitoring (September 2019 to September 2024) after 50,000 population trajectories simulated for three timeframes (a-c). The shape of the points in the central column shows the model selected in each week of estimation (EGSS and OUSS, the preference of the latter by the model suggestion of density dependence). Model selection was conducted for the benchmark (right column), but all suggested density-independent dynamic (EGSS). Higher temporal resolution evident in eBird (n = 262) when compared with standardized monitored data (n = 33).](results/Figure3_Extended_OUSS_EGSS_3-5-10yrsSimulated.png){width=80%}
+
 
 ```{r exporting Figure 3}
 #and combine in the figure
@@ -3016,19 +3423,20 @@ Figure3 <- grid.arrange(Figure3a, Figure3b, Figure3c,
 
 #lets saved it with good proportions
 ggsave("results/Figure3_PLocalPersi_3-5-10yrsSimulated.pdf", 
-       plot = Figure3, dpi = 300, width = 10, height = 9, units = "in")
+       plot = Figure3, dpi = 300, width = 5.5, height = 8, units = "in")
 
 ggsave("results/Figure3_PLocalPersi_3-5-10yrsSimulated.png", 
-       plot = Figure3, dpi = 300, width = 10, height = 9, units = "in")
+       plot = Figure3, dpi = 300, width = 5.5, height = 8, units = "in")
 ```
 
-![Estimation of local persistence probability ($\hat{\phi}$ +/- standard deviation) estimated for each dataset after 50,000 population trajectories simulated for three timeframes (a-c). Shape of the points shows the model selected in each week of estimation. Higher temporal resolution evident in eBird (n = 242) when compared with standardized monitored data (n = 48). See extended supplementary figure S6 with the observed abundance time series. *Figure 3 in Main text*](results/Figure3_PLocalPersi_3-5-10yrsSimulated.png){width=100%}
+![Estimated local persistence probability ($\hat{\phi}$ +/- standard deviation) during ~5 years of monitoring (October 2019 to July 2024) after 50,000 population trajectories simulated for three timeframes (a-c). For each week of estimation, a density independence model (EGSS) was fitted for the observation time series, estimate parameters, and simulate trajectories. Higher temporal resolution is evident in eBird (n = 262) when compared with standardized monitored data (n = 33). See extended supplementary figure S6 with the observed abundance time series. *Figure 3 in Main text*](results/Figure3_PLocalPersi_3-5-10yrsSimulated.png){width=80%}
 
 How correlated are the $\hat{\phi}$?
 
 ```{r correlation in three timeframes}
-correlations <- phi_combined %>%
-  group_by(Timeframe) %>%
+correlations <- phi.eBird |>
+  full_join(phi.SM) |>
+  group_by(Timeframe) |>
   summarise(correlation = cor(phi.hatSM, 
                               phi.hat, 
                               use = "pairwise.complete.obs"))
@@ -3046,7 +3454,9 @@ Time frame of ~5 years had the higher Pearson correlation among the three time f
 #Extended figures
 
 phi_data_plot <- snailkites.PP |> 
-  left_join(phi_combined |> filter(Timeframe == "150 weeks or ~3 years")) |>
+  left_join(phi.eBird |>
+              full_join(phi.SM) |>
+              filter(Timeframe == "150 weeks or ~3 years")) |>
   ungroup() |>
     mutate(phi.hat = phi.hat * coeff,
            SD.phi = SD.phi * coeff,
@@ -3076,21 +3486,22 @@ Fig3aExt <- ggplot(phi_data_plot |>
                 aes(x = observation.date,
                     y = phi_values,
                     fill = group)) +
-  geom_vline(xintercept = snailkites.PP$observation.date[86], 
-             color = "gray", linetype = "dashed") +
+  geom_vline(xintercept = snailkites.PP$observation.date[78], 
+             color = "gray", linetype = "dotted") +
   geom_ribbon(data = ribbon_phi_eBird,
               aes(ymin = phi.hat-SD.phi, ymax = phi.hat+SD.phi),
               fill = "#91bfdb25") +
   geom_line(aes(color = group, linetype = group)) +
   geom_point(data = phi_data_plot |> 
                   filter(group %in% c("Observed.y")),
-             color = "black", size = 1, fill = "#4575b4", shape = 21)+
+             color = "#4575b445", size = 0.5, fill = "#4575b445", shape = 21)+
   geom_point(data = phi_data_plot |> 
                   filter(group %in% c("phi.hat")) |>
                drop_na(Model),
-             aes(shape = Model), color = "black") +
+              color = "black",
+             shape = 21, fill = "#91bfdb95") +
   labs(x = "Observation date",
-       y = "Population abundance",
+       y = "Observed weekly high count",
        tag = expression(bold("(a)")),
        fill = "",
        color = "",
@@ -3102,25 +3513,19 @@ Fig3aExt <- ggplot(phi_data_plot |>
   scale_x_date(limits = c(min(snailkites.PP$observation.date),
                           max(snailkites.PP$observation.date)),
                breaks = seq(as.Date("2018-01-01"), as.Date(Sys.Date( )), 
-                            by = "6 months"), date_labels="%b-%y")+
+                            by = "10 months"), date_labels="%b-%y")+
   scale_linetype_manual(values = c("solid",
                                    "solid"),
                      labels = c("eBird weekly high count", 
                                 expression("P(local persistence) = " * italic(phi))))+
-  scale_color_manual(values = c("#4575b445", 
-                                "#91bfdb45"),
+  scale_color_manual(values = c("#4575b475", 
+                                "#91bfdb75"),
                      labels = c("eBird weekly high count", 
                                 expression("P(local persistence) = " * italic(phi)))) +
-  scale_fill_manual(values = c("#4575b4", "#91bfdb"),
-                    labels = c("eBird weekly high count", 
-                                expression("P(local persistence) = " * italic(phi)))) +
-  scale_shape_manual(values = c(21,24),
-                     labels = c("EGSS", 
-                                "OUSS")) +
   geom_hline(yintercept = N.critical, linetype = "dashed", color = "red")+
   theme_classic() +
   theme(legend.title = element_blank(),
-        legend.position = c(0.15,0.7),
+        legend.position = c(0.125,0.7),
         legend.background = element_blank(),
         legend.box.background = element_rect(colour = "black"),
         axis.line.y.right = element_line(color = "#91bfdb"),
@@ -3135,7 +3540,7 @@ Fig3bExt <- ggplot(phi_data_plot |>
                 aes(x = observation.date,
                     y = phi_values,
                     fill = group)) +
-  geom_vline(xintercept = snailkites.PP$observation.date[86], 
+  geom_vline(xintercept = snailkites.PP$observation.date[78], 
              color = "gray", linetype = "dashed") +
   geom_ribbon(data = ribbon_phi_SM,
               aes(ymin = phi.hatSM-SD.phiSM, ymax = phi.hatSM+SD.phiSM),
@@ -3143,13 +3548,14 @@ Fig3bExt <- ggplot(phi_data_plot |>
   geom_line(aes(color = group, linetype = group)) +
   geom_point(data = phi_data_plot |> 
                   filter(group %in% c("abundance.monitored")),
-             color = "black", size = 1, fill = "#d73027", shape = 21)+
+             color = "#d7302745", size = 0.5, fill = "#d7302745", shape = 21)+
   geom_point(data = phi_data_plot |> 
                   filter(group %in% c("phi.hatSM")) |>
                drop_na(Model),
-             aes(shape = Model), color = "black") +
+             shape = 21, color = "black",
+             fill = "#fc8d5995") +
   labs(x = "Observation date",
-       y = "Population abundance",
+       y = "Observed weekly high count",
        tag = expression(bold("(b)")),
        fill = "",
        color = "",
@@ -3170,16 +3576,10 @@ Fig3bExt <- ggplot(phi_data_plot |>
                                 "#fc8d5945"),
                      labels = c("Standardized Monitored", 
                                 expression("P(local persistence) = " * italic(phi)))) +
-  scale_fill_manual(values = c("#d73027", "#fc8d59"),
-                    labels = c("Standardized Monitored", 
-                                expression("P(local persistence) = " * italic(phi)))) +
-  scale_shape_manual(values = c(21,24),
-                     labels = c("EGSS", 
-                                "OUSS")) +
   geom_hline(yintercept = N.critical, linetype = "dashed", color = "red")+
   theme_classic() +
   theme(legend.title = element_blank(),
-        legend.position = c(0.15,0.7),
+        legend.position = c(0.125,0.7),
         legend.background = element_blank(),
         legend.box.background = element_rect(colour = "black"),
         axis.line.y.right = element_line(color = "#fc8d59"),
@@ -3188,7 +3588,8 @@ Fig3bExt
 
 
 #Performance comparison
-phidata <- phi_combined |>
+phidata <- phi.eBird |>
+              full_join(phi.SM) |>
   filter(Timeframe == "150 weeks or ~3 years") 
 
 #relationship?
@@ -3239,7 +3640,7 @@ ggsave("results/Figure3_timeseries_PLocalPersi150weeks.png",
        plot = Fig3, dpi = 300, width = 16, height = 6, units = "in")
 ```
 
-![Time series of weekly high counts of Snail kites in Payne's Prairie wetland from eBird (a) and standardized monitoring surveys (b), with local persistence probability ($\phi$) +/- standard deviation estimated for each dataset after 50,000 population trajectories simulated. (c) Local persistence probability extimated from eBird data plotted against local persistence probability estimated from standardized monitored, with standard deviation. Estimation of $\phi$ from 50,000 trajectories in a timeframe of \~3 years (150 weeks). Solid black line is the line of identity, while dashed black line is linear regression (equation in gray).](results/Figure3_timeseries_PLocalPersi150weeks.png){width=100%}
+![Time series of weekly high counts of Snail kites in Payne's Prairie wetland from eBird (a) and standardized monitoring surveys (b), with local persistence probability ($\phi$) +/- standard deviation estimated for each dataset after 50,000 population trajectories simulated. (c) Local persistence probability extimated from eBird data plotted against local persistence probability estimated from standardized monitored, with standard deviation. Estimation of $\phi$ from 50,000 trajectories in a timeframe of \~3 years (150 weeks). Solid black line is the line of identity, while dashed black line is linear regression (equation in gray).](results/Figure3_timeseries_PLocalPersi150weeks.png){width=80%}
 
 \FloatBarrier
 
@@ -3249,7 +3650,9 @@ ggsave("results/Figure3_timeseries_PLocalPersi150weeks.png",
 #Extended figures
 
 phi_data_plot <- snailkites.PP |> 
-  left_join(phi_combined |> filter(Timeframe == "250 weeks or ~5 years")) |>
+  left_join(phi.eBird |>
+              full_join(phi.SM)  |> 
+              filter(Timeframe == "250 weeks or ~5 years")) |>
   ungroup() |>
     mutate(phi.hat = phi.hat * coeff,
            SD.phi = SD.phi * coeff,
@@ -3279,7 +3682,7 @@ Fig3aExt <- ggplot(phi_data_plot |>
                 aes(x = observation.date,
                     y = phi_values,
                     fill = group)) +
-  geom_vline(xintercept = snailkites.PP$observation.date[86], 
+  geom_vline(xintercept = snailkites.PP$observation.date[78], 
              color = "gray", linetype = "dashed") +
   geom_ribbon(data = ribbon_phi_eBird,
               aes(ymin = phi.hat-SD.phi, ymax = phi.hat+SD.phi),
@@ -3287,13 +3690,13 @@ Fig3aExt <- ggplot(phi_data_plot |>
   geom_line(aes(color = group, linetype = group)) +
   geom_point(data = phi_data_plot |> 
                   filter(group %in% c("Observed.y")),
-             color = "black", size = 1, fill = "#4575b4", shape = 21)+
+             color = "#4575b445", size = 0.5, fill = "#4575b445", shape = 21)+
   geom_point(data = phi_data_plot |> 
                   filter(group %in% c("phi.hat")) |>
                drop_na(Model),
-             aes(shape = Model), color = "black") +
+             shape = 21, fill = "#91bfdb95", color = "black") +
   labs(x = "Observation date",
-       y = "Population abundance",
+       y = "Observed weekly high counts",
        tag = expression(bold("(a)")),
        fill = "",
        color = "",
@@ -3314,16 +3717,10 @@ Fig3aExt <- ggplot(phi_data_plot |>
                                 "#91bfdb45"),
                      labels = c("eBird weekly high count", 
                                 expression("P(local persistence) = " * italic(phi)))) +
-  scale_fill_manual(values = c("#4575b4", "#91bfdb"),
-                    labels = c("eBird weekly high count", 
-                                expression("P(local persistence) = " * italic(phi)))) +
-  scale_shape_manual(values = c(21,24),
-                     labels = c("EGSS", 
-                                "OUSS")) +
   geom_hline(yintercept = N.critical, linetype = "dashed", color = "red")+
   theme_classic() +
   theme(legend.title = element_blank(),
-        legend.position = c(0.15,0.7),
+        legend.position = c(0.125,0.7),
         legend.background = element_blank(),
         legend.box.background = element_rect(colour = "black"),
         axis.line.y.right = element_line(color = "#91bfdb"),
@@ -3338,7 +3735,7 @@ Fig3bExt <- ggplot(phi_data_plot |>
                 aes(x = observation.date,
                     y = phi_values,
                     fill = group)) +
-  geom_vline(xintercept = snailkites.PP$observation.date[86], 
+  geom_vline(xintercept = snailkites.PP$observation.date[78], 
              color = "gray", linetype = "dashed") +
   geom_ribbon(data = ribbon_phi_SM,
               aes(ymin = phi.hatSM-SD.phiSM, ymax = phi.hatSM+SD.phiSM),
@@ -3346,13 +3743,13 @@ Fig3bExt <- ggplot(phi_data_plot |>
   geom_line(aes(color = group, linetype = group)) +
   geom_point(data = phi_data_plot |> 
                   filter(group %in% c("abundance.monitored")),
-             color = "black", size = 1, fill = "#d73027", shape = 21)+
+             color = "#d7302745", size = 0.5, fill = "#d7302745", shape = 21)+
   geom_point(data = phi_data_plot |> 
                   filter(group %in% c("phi.hatSM")) |>
                drop_na(Model),
-             aes(shape = Model), color = "black") +
+             shape = 21, fill = "#fc8d5995", color = "black") +
   labs(x = "Observation date",
-       y = "Population abundance",
+       y = "Observed weekly high counts",
        tag = expression(bold("(b)")),
        fill = "",
        color = "",
@@ -3373,16 +3770,10 @@ Fig3bExt <- ggplot(phi_data_plot |>
                                 "#fc8d5945"),
                      labels = c("Standardized Monitored", 
                                 expression("P(local persistence) = " * italic(phi)))) +
-  scale_fill_manual(values = c("#d73027", "#fc8d59"),
-                    labels = c("Standardized Monitored", 
-                                expression("P(local persistence) = " * italic(phi)))) +
-  scale_shape_manual(values = c(21,24),
-                     labels = c("EGSS", 
-                                "OUSS")) +
   geom_hline(yintercept = N.critical, linetype = "dashed", color = "red")+
   theme_classic() +
   theme(legend.title = element_blank(),
-        legend.position = c(0.15,0.7),
+        legend.position = c(0.125,0.7),
         legend.background = element_blank(),
         legend.box.background = element_rect(colour = "black"),
         axis.line.y.right = element_line(color = "#fc8d59"),
@@ -3391,7 +3782,8 @@ Fig3bExt
 
 
 #Performance comparison
-phidata <- phi_combined |>
+phidata <- phi.eBird |>
+              full_join(phi.SM)  |>
   filter(Timeframe == "250 weeks or ~5 years") 
 
 #relationship?
@@ -3444,7 +3836,7 @@ ggsave("results/Figure3_timeseries_PLocalPersi250weeks.png",
        plot = Fig3, dpi = 300, width = 16, height = 6, units = "in")
 ```
 
-![Time series of weekly high counts of Snail kites in Payne's Prairie wetland from eBird (a) and standardized monitoring surveys (b), with local persistence probability ($\phi$) +/- standard deviation estimated for each dataset after 50,000 population trajectories simulated. (c) Local persistence probability extimated from eBird data plotted against local persistence probability estimated from standardized monitored, with standard deviation. Estimation of $\phi$ from 50,000 trajectories in a timeframe of \~5 years (250 weeks). Solid black line is the line of identity, while dashed black line is linear regression (equation in gray).](results/Figure3_timeseries_PLocalPersi250weeks.png){width=100%}
+![Time series of weekly high counts of Snail kites in Payne's Prairie wetland from eBird (a) and standardized monitoring surveys (b), with local persistence probability ($\phi$) +/- standard deviation estimated for each dataset after 50,000 population trajectories simulated. (c) Local persistence probability extimated from eBird data plotted against local persistence probability estimated from standardized monitored, with standard deviation. Estimation of $\phi$ from 50,000 trajectories in a timeframe of \~5 years (250 weeks). Solid black line is the line of identity, while dashed black line is linear regression (equation in gray).](results/Figure3_timeseries_PLocalPersi250weeks.png){width=80%}
 
 \FloatBarrier
 
@@ -3454,7 +3846,9 @@ ggsave("results/Figure3_timeseries_PLocalPersi250weeks.png",
 #Extended figures
 
 phi_data_plot <- snailkites.PP |> 
-  left_join(phi_combined |> filter(Timeframe == "500 weeks or ~10 years")) |>
+  left_join(phi.eBird |>
+              full_join(phi.SM) |> 
+              filter(Timeframe == "500 weeks or ~10 years")) |>
   ungroup() |>
     mutate(phi.hat = phi.hat * coeff,
            SD.phi = SD.phi * coeff,
@@ -3484,7 +3878,7 @@ Fig3aExt <- ggplot(phi_data_plot |>
                 aes(x = observation.date,
                     y = phi_values,
                     fill = group)) +
-  geom_vline(xintercept = snailkites.PP$observation.date[86], 
+  geom_vline(xintercept = snailkites.PP$observation.date[78], 
              color = "gray", linetype = "dashed") +
   geom_ribbon(data = ribbon_phi_eBird,
               aes(ymin = phi.hat-SD.phi, ymax = phi.hat+SD.phi),
@@ -3492,13 +3886,13 @@ Fig3aExt <- ggplot(phi_data_plot |>
   geom_line(aes(color = group, linetype = group)) +
   geom_point(data = phi_data_plot |> 
                   filter(group %in% c("Observed.y")),
-             color = "black", size = 1, fill = "#4575b4", shape = 21)+
+             color = "#4575b445", size = 0.5, fill = "#4575b445", shape = 21)+
   geom_point(data = phi_data_plot |> 
                   filter(group %in% c("phi.hat")) |>
                drop_na(Model),
-             aes(shape = Model), color = "black") +
+             shape = 21, fill = "#91bfdb95", color = "black") +
   labs(x = "Observation date",
-       y = "Population abundance",
+       y = "Observed weekly high counts",
        tag = expression(bold("(a)")),
        fill = "",
        color = "",
@@ -3519,16 +3913,10 @@ Fig3aExt <- ggplot(phi_data_plot |>
                                 "#91bfdb45"),
                      labels = c("eBird weekly high count", 
                                 expression("P(local persistence) = " * italic(phi)))) +
-  scale_fill_manual(values = c("#4575b4", "#91bfdb"),
-                    labels = c("eBird weekly high count", 
-                                expression("P(local persistence) = " * italic(phi)))) +
-  scale_shape_manual(values = c(21,24),
-                     labels = c("EGSS", 
-                                "OUSS")) +
   geom_hline(yintercept = N.critical, linetype = "dashed", color = "red")+
   theme_classic() +
   theme(legend.title = element_blank(),
-        legend.position = c(0.15,0.7),
+        legend.position = c(0.125,0.7),
         legend.background = element_blank(),
         legend.box.background = element_rect(colour = "black"),
         axis.line.y.right = element_line(color = "#91bfdb"),
@@ -3543,7 +3931,7 @@ Fig3bExt <- ggplot(phi_data_plot |>
                 aes(x = observation.date,
                     y = phi_values,
                     fill = group)) +
-  geom_vline(xintercept = snailkites.PP$observation.date[86], 
+  geom_vline(xintercept = snailkites.PP$observation.date[78], 
              color = "gray", linetype = "dashed") +
   geom_ribbon(data = ribbon_phi_SM,
               aes(ymin = phi.hatSM-SD.phiSM, ymax = phi.hatSM+SD.phiSM),
@@ -3551,13 +3939,13 @@ Fig3bExt <- ggplot(phi_data_plot |>
   geom_line(aes(color = group, linetype = group)) +
   geom_point(data = phi_data_plot |> 
                   filter(group %in% c("abundance.monitored")),
-             color = "black", size = 1, fill = "#d73027", shape = 21)+
+             color = "#d7302745", size = 0.5, fill = "#d7302745", shape = 21)+
   geom_point(data = phi_data_plot |> 
                   filter(group %in% c("phi.hatSM")) |>
                drop_na(Model),
-             aes(shape = Model), color = "black") +
+             shape = 21, fill = "#fc8d5995", color = "black") +
   labs(x = "Observation date",
-       y = "Population abundance",
+       y = "Observed weekly high counts",
        tag = expression(bold("(b)")),
        fill = "",
        color = "",
@@ -3578,16 +3966,10 @@ Fig3bExt <- ggplot(phi_data_plot |>
                                 "#fc8d5945"),
                      labels = c("Standardized Monitored", 
                                 expression("P(local persistence) = " * italic(phi)))) +
-  scale_fill_manual(values = c("#d73027", "#fc8d59"),
-                    labels = c("Standardized Monitored", 
-                                expression("P(local persistence) = " * italic(phi)))) +
-  scale_shape_manual(values = c(21,24),
-                     labels = c("EGSS", 
-                                "OUSS")) +
   geom_hline(yintercept = N.critical, linetype = "dashed", color = "red")+
   theme_classic() +
   theme(legend.title = element_blank(),
-        legend.position = c(0.15,0.7),
+        legend.position = c(0.125,0.7),
         legend.background = element_blank(),
         legend.box.background = element_rect(colour = "black"),
         axis.line.y.right = element_line(color = "#fc8d59"),
@@ -3596,7 +3978,8 @@ Fig3bExt
 
 
 #Performance comparison
-phidata <- phi_combined |>
+phidata <- phi.eBird |>
+              full_join(phi.SM) |>
   filter(Timeframe == "500 weeks or ~10 years") 
 
 #relationship?
@@ -3649,7 +4032,7 @@ ggsave("results/Figure3_timeseries_PLocalPersi500weeks.png",
        plot = Fig3, dpi = 300, width = 16, height = 6, units = "in")
 ```
 
-![Time series of weekly high counts of Snail kites in Payne's Prairie wetland from eBird (a) and standardized monitoring surveys (b), with local persistence probability ($\phi$) +/- standard deviation estimated for each dataset after 50,000 population trajectories simulated. (c) Local persistence probability extimated from eBird data plotted against local persistence probability estimated from standardized monitored, with standard deviation. Estimation of $\phi$ from 50,000 trajectories in a timeframe of \~10 years (500 weeks). Solid black line is the line of identity, while dashed black line is linear regression (equation in gray).](results/Figure3_timeseries_PLocalPersi500weeks.png){width=100%}
+![Time series of weekly high counts of Snail kites in Payne's Prairie wetland from eBird (a) and standardized monitoring surveys (b), with local persistence probability ($\phi$) +/- standard deviation estimated for each dataset after 50,000 population trajectories simulated. (c) Local persistence probability extimated from eBird data plotted against local persistence probability estimated from standardized monitored, with standard deviation. Estimation of $\phi$ from 50,000 trajectories in a timeframe of \~10 years (500 weeks). Solid black line is the line of identity, while dashed black line is linear regression (equation in gray).](results/Figure3_timeseries_PLocalPersi500weeks.png){width=80%}
 
 \clearpage
 
@@ -3674,126 +4057,87 @@ results <- list()
 
 # Loop over each percentage
 for (p in percentages) {
-  
-  # Start timing for this percentage
+
+  # Start timing for each percentage
   StartTime <- Sys.time()
-  
+
   # Sample tt and yt for the current percentage p
   sampled_data <- snailkites.PP |>
     ungroup() |>
     drop_na(Observed.y) |>
     sample_frac(p) |>
     arrange(Time.t)
-  
+
   # Extract tt and yt
   tt_sampled <- sampled_data$Time.t
   yt_sampled <- log(sampled_data$Observed.y)
-  
+
   # Define N_critical
-  N.critical <- (1/2) * mean(exp(yt_sampled))
-  
+  N.critical <- round((1/2) * mean(exp(yt_sampled)),0)
+
   # End positions to modeling
-  end_positions <- which(tt_sampled >= 96) #having the initial phi fixed
-  
-  #save φ (SD) 
+  end_positions <- which(tt_sampled >= 88) #having the initial phi fixed
+
+  #save φ (SD)
   phi_results <- vector("list", length = length(end_positions))
 
   #save model used
   modelSS <- vector("list", length = length(end_positions))
-  
+
   for (j in seq_along(end_positions)) {
     last.tt <- end_positions[j]
     m <- tt_sampled[last.tt]
-    
-    #only for ~five years
-  
-    OUSS.partial <- ouss_remle(yt = yt_sampled[1:last.tt],
-                               tt = tt_sampled[1:last.tt],
-                               fguess = guess_ouss(yt = yt_sampled[1:last.tt],
-                                                   tt = tt_sampled[1:last.tt]))
-    
-    model <- if(OUSS.partial$remles[2] < 0.025){
-      "EGSS"
-    }else{
-      "OUSS"
-    }
-    modelSS[[j]] <- model
-    
-    if(model == "OUSS"){
-  
-      thres.times <- as.numeric(0:(250)) #~5 years
-      len <- max(thres.times) + 1
-      
-      sim.mat.eBird <- ouss_sim(ntraj, 
-                                tt = thres.times, 
-                                parms = OUSS.partial$remles)
-      
-      phi <- rep(0, ntraj)
-      last.points <- rep(0, ntraj)
-      
-      for(n in 1:ntraj){
-        Pop.sim <- exp(c(yt_sampled[last.tt], sim.mat.eBird[-1,n]));
-        last.points[n] <- Pop.sim[len] 
-      
-      # How many times each trajectory go below the threshold?
-        below.threshold <- sum(Pop.sim < N.critical)
-        phi[n] <- 1-(below.threshold/len)
-      }
 
-      #Expected value of probability of local persistence, and SD
-      phi_mean <- mean(phi)
-      phi_SD <- sqrt(var(phi))
-  
-      phi_results[[j]] <- cbind(phi_mean,phi_SD)
-    }
-    else{
-      
-      EGSS.partial <- egss_remle(yt = yt_sampled[1:last.tt],
+    #only for ~five years
+    #Forcing EGSS
+    model <- "EGSS"
+    modelSS[[j]] <- model
+
+    EGSS.partial <- egss_remle(yt = yt_sampled[1:last.tt],
                                  tt = tt_sampled[1:last.tt],
                                  fguess = guess_egss(yt = yt_sampled[1:last.tt],
                                                      tt = tt_sampled[1:last.tt]));
 
       thres.times <- as.numeric(0:(250)) #~5 years
       len <- max(thres.times) + 1
-      
-      sim.mat.eBird <- egss_sim(ntraj, 
-                                tt = thres.times, 
+
+      sim.mat.eBird <- egss_sim(ntraj,
+                                tt = thres.times,
                                 parms = EGSS.partial$remles)
-      
+
       phi <- rep(0, ntraj)
       last.points <- rep(0, ntraj)
-      
+
       for(n in 1:ntraj){
         Pop.sim <- exp(c(yt_sampled[last.tt], sim.mat.eBird[-1,n]));
-        last.points[n] <- Pop.sim[len] 
-      
-      # How many times each trajectory go below the threshold?
+        last.points[n] <- Pop.sim[len]
+
+        # How many times each trajectory go below the threshold?
         below.threshold <- sum(Pop.sim < N.critical)
         phi[n] <- 1-(below.threshold/len)
       }
-      
+
       #Expected value of probability of local persistence, and SD
       phi_mean <- mean(phi)
       phi_SD <- sqrt(var(phi))
-  
+
       phi_results[[j]] <- cbind(phi_mean,phi_SD)
-    }
-    
+
     #see advance by printing results
     print(cbind(c(p*100),model,
                 (phi_mean-phi_SD),
                 phi_mean,
                 (phi_mean+phi_SD)))
-  
-      # Store results in lists for each percentage
-      phi_results[[j]] <- cbind(phi_mean,phi_SD)
-      modelSS[[j]] <- model
+
+    # Store results in lists for each percentage
+    phi_results[[j]] <- cbind(phi_mean,phi_SD)
+    modelSS[[j]] <- model
   }
-  
+
   # End timing for this percentage
   EndTime <- Sys.time()
   timelast <- EndTime - StartTime
-  
+
   # Store results for this percentage
   results[[paste0("p", p*100)]] <- list(
     Time.t = tt_sampled[end_positions],
@@ -3803,11 +4147,7 @@ for (p in percentages) {
   )
 }
 
-results
 ```
-
-
-![Time taken for different percentage](results/Time_taken_Sensitivity.png){width=50%}
 
 Recover and save the results as data frame for comparison (with an iterative process for each percentage).
 
@@ -3891,30 +4231,40 @@ cor_sen |>
   group_by(Percentage) |>
   summarise(correlation = cor(phi.hatSM, 
                               phi.hat, 
-                              use = "pairwise.complete.obs"))
+                              use = "pairwise.complete.obs"),
+            n_obs = n())
+
+#overlapping weeks
+cor_sen |> 
+  filter(Timeframe.y == "250 weeks or ~5 years") |>
+  group_by(Percentage) |>
+  summarise(correlation = cor(phi.hatSM, 
+                              phi.hat, 
+                              use = "pairwise.complete.obs"),
+            n_obs = n())
 
 #labeller object for the `facet_wrap()`
 sensilab <- c(
-  'All' = "Complete (n = 242)",
-  'p95' = "95% dataset (n = 228)",
-  'p90' = "90% dataset (n = 213)",
-  'p85' = "85% dataset (n = 205)",
-  'p80' = "80% dataset (n = 196)",
-  'p75' = "75% dataset (n = 178)",
-  'p70' = "70% dataset (n = 172)",
-  'p65' = "65% dataset (n = 157)",
-  'p60' = "60% dataset (n = 147)",
-  'p55' = "55% dataset (n = 134)",
-  'p50' = "50% dataset (n = 124)",
-  'p45' = "45% dataset (n = 113)",
-  'p40' = "40% dataset (n = 97)",
-  'p35' = "35% dataset (n = 86)",
-  'p30' = "30% dataset (n = 70)",
-  'p25' = "25% dataset (n = 59)",
-  'p20' = "20% dataset (n = 44)",
-  'p15' = "15% dataset (n = 37)",
-  'p10' = "10% dataset (n = 26)",
-  'p5' = "5% dataset (n = 8)"
+  'All' = "Complete (n = 262; 33)",
+  'p95' = "95% dataset (n = 250; 33)",
+  'p90' = "90% dataset (n = 232; 32)",
+  'p85' = "85% dataset (n = 226; 29)",
+  'p80' = "80% dataset (n = 210; 28)",
+  'p75' = "75% dataset (n = 197; 23)",
+  'p70' = "70% dataset (n = 184; 23)",
+  'p65' = "65% dataset (n = 171; 21)",
+  'p60' = "60% dataset (n = 169; 23)",
+  'p55' = "55% dataset (n = 146; 19)",
+  'p50' = "50% dataset (n = 128; 21)",
+  'p45' = "45% dataset (n = 120; 17)",
+  'p40' = "40% dataset (n = 111; 20)",
+  'p35' = "35% dataset (n = 99; 10)",
+  'p30' = "30% dataset (n = 77; 8)",
+  'p25' = "25% dataset (n = 65; 6)",
+  'p20' = "20% dataset (n = 50; 2)",
+  'p15' = "15% dataset (n = 39; 3)",
+  'p10' = "10% dataset (n = 25; 5)",
+  'p5' = "5% dataset (n = 12; 1)"
 )
 
 Figure4 <- ggplot(cor_sen,
@@ -3943,6 +4293,7 @@ Figure4 <- ggplot(cor_sen,
 
 Figure4
 
+
 #lets saved it with good proportions
 ggsave("results/Figure4_Sensitivity_correlations.pdf", 
        plot = Figure4, dpi = 300, width = 9, height = 8, units = "in")
@@ -3951,7 +4302,7 @@ ggsave("results/Figure4_Sensitivity_correlations.png",
        plot = Figure4, dpi = 300, width = 9, height = 8, units = "in")
 ```
 
-![Sensitivity analysis. Correlation between eBird and standardized monitoring, from complete to reduced to 90, 70, 50, 30, and 10%](results/Figure4_Sensitivity_correlations.png){width=100%}
+![Relationship of estimated local persistence probability ($\hat{\phi}$) from eBird (ordinate) and standardized monitoring (abscissa) under data reduction as sensitivity analysis. Sequence of panels represent reduction from the complete eBird dataset (relationship of trends in Figure 3b) to different percentages of randomly subsampled data, from top-left to bottom-right. Local persistence probability was estimated using a ~five-year timeframe of population simulations from iteratively fitted population models. A linear model is fitted and deployed with a blue line, including confidence intervals in gray ribbon ($\rho$ below the equation shows Pearson correlation coefficient); the diagonal line is the line of identity (relation 1:1). See extended figure in Supporting Information-Section 7 for specific trends of $\hat{\phi}$ across the time series. Although model accuracy varies with decreasing data and some underestimation of $\hat{\phi}$ from eBird data suggest less conservative estimation, the relationship with standardized monitoring data might stands with as little as 25% of the observed eBird weekly high counts](results/Figure4_Sensitivity_correlations.png){width=80%}
 
 And we can see the differences in a figure
 
@@ -3990,20 +4341,20 @@ Fig4Ext <- ggplot(phiSD_df_sensitivity, aes(x = observation.date,
   labs(x = "Observation date",
        y = expression(phi))+
   theme_classic() +
-  theme(legend.position = "bottom")
+  theme(legend.position = "none")
 
 Fig4Ext
 
 #lets saved it with good proportions
-ggsave("supporting/Figure4ext_sensitivity_datareduction.pdf", 
+ggsave("results/Figure4ext_sensitivity_datareduction.pdf", 
        plot = Fig4Ext, dpi = 300, width = 10, height = 7, units = "in")
 
-ggsave("supporting/Figure4ext_sensitivity_datareduction.png", 
+ggsave("results/Figure4ext_sensitivity_datareduction.png", 
        plot = Fig4Ext, dpi = 300, width = 10, height = 7, units = "in")
 
 ```
 
-![Data reduction as sensitivity analysis. Estimation of local persistence probability ($\phi$) for standardized monitoring (orange) is replicated in each panel. Sequence of panels represent reduction from the complete dataset (same as Figure 3b *in the Main text*) to different percentages of randomly subsampled data, from top-left to bottom-right. Point shapes represent fitted model, the EGSS (circle) or OUSS (triangle). *Extended figure for Figure 4 in the Main text*.](supporting/Figure4ext_sensitivity_datareduction.png){width=100%}
+![Data reduction as sensitivity analysis. Estimation of local persistence probability ($\phi$) for standardized monitoring (orange) is replicated in each panel. Sequence of panels represent reduction from the complete dataset (same as Figure 3b *in the Main text*) to different percentages of randomly subsampled data, from top-left to bottom-right. Point shapes represent fitted model, the EGSS (circle) or OUSS (triangle). *Extended figure for Figure 4 in the Main text*.](results/Figure4ext_sensitivity_datareduction.png){width=100%}
 
 \clearpage
 
@@ -4103,12 +4454,52 @@ for (k in cells) {
     m <- tt_sampled[last.tt]
     
     #only for ~5 years
+  
+    OUSS.partial <- ouss_remle(yt = yt_sampled[1:last.tt],
+                               tt = tt_sampled[1:last.tt],
+                               fguess = guess_ouss(yt = yt_sampled[1:last.tt],
+                                                   tt = tt_sampled[1:last.tt]))
     
-    model <-"EGSS"
-
+    model <- if(OUSS.partial$remles[2] < 0.025){
+      "EGSS"
+    }else{
+      "OUSS"
+    }
     modelSS[[j]] <- model
     
-    EGSS.partial <- egss_remle(yt = yt_sampled[1:last.tt],
+    if(model == "OUSS"){
+      
+      #Transformation in Dennis & Ponciano (Ecology 2014. pg 2072):
+        #a = mu(1-e^(-theta))
+      trendP <- (OUSS.partial$remles[1])*(1-exp(-OUSS.partial$remles[2]))
+  
+      thres.times <- as.numeric(0:(60)) #~5 years
+      len <- max(thres.times) + 1
+      
+      sim.mat.eBird <- ouss_sim(ntraj, 
+                                tt = thres.times, 
+                                parms = OUSS.partial$remles)
+      
+      phi <- rep(0, ntraj)
+      last.points <- rep(0, ntraj)
+      
+      for(n in 1:ntraj){
+        Pop.sim <- exp(c(yt_sampled[last.tt], sim.mat.eBird[-1,n]));
+        last.points[n] <- Pop.sim[len] 
+      
+      # How many times each trajectory go below the threshold?
+        below.threshold <- sum(Pop.sim < N.critical)
+        phi[n] <- 1-(below.threshold/len)
+      }
+
+      #Expected value of probability of local persistence, and SD
+      phi_mean <- mean(phi)
+      phi_SD <- sqrt(var(phi))
+      
+    }
+    else{
+      
+      EGSS.partial <- egss_remle(yt = yt_sampled[1:last.tt],
                                  tt = tt_sampled[1:last.tt],
                                  fguess = guess_egss(yt = yt_sampled[1:last.tt],
                                                      tt = tt_sampled[1:last.tt]));
@@ -4138,7 +4529,7 @@ for (k in cells) {
       phi_mean <- mean(phi)
       phi_SD <- sqrt(var(phi))
   
-    
+    }
     
     #see advance by printing results
     print(cbind(k, #cell ID
@@ -4169,10 +4560,7 @@ for (k in cells) {
   )
 }
 
-sk.others.results
 ```
-
-![Screenshot of the initial of the iteration](data_raw/OtherPopsEstimatingPhi.png){width=50%}
 
 Recover and save the results as data frame (with an iterative process for each location).
 
