@@ -1223,7 +1223,7 @@ CellTop <- SnailKite |>
   mutate(n_checklists = n()) |>
   ungroup() |>
   filter(n_checklists == max(n_checklists)) |>
-  select(cell) |>
+  dplyr::select(cell) |>
   unique()
 CellTop #ID of the cell with more records - Payne's Prairie
 ```
@@ -1261,7 +1261,7 @@ Poli.etal <- Poli.etal |>
          week = week(observation.date),
          Time.t = case_when(year == 2018 ~ week,
                             year > 2018 ~ week+(52*(year-2018)))) |>
-  select(!observation.date)
+  dplyr::select(!observation.date)
 ```
 
 Call the data form standardized monitoring in the project Snail Kites
@@ -1416,7 +1416,7 @@ yt1 = sk.pp.init |>
   ungroup() |>
   arrange(Time.t) |>
   drop_na(Observed.y) |>
-  select(Observed.y) |>
+  dplyr::select(Observed.y) |>
   log()
 
 #log-abundance estimate as a vector
@@ -1427,7 +1427,7 @@ tt1 <- sk.pp.init |>
   ungroup() |>
   arrange(Time.t) |>
   drop_na(Observed.y) |>
-  select(Time.t)
+  dplyr::select(Time.t)
 
 #time vector (week since 2018-01)
 tt1 <- tt1$Time.t
@@ -1481,7 +1481,7 @@ ytSM1 = sk.pp.init |>
   ungroup() |>
   arrange(Time.t) |>
   drop_na(abundance.monitored) |>
-  select(abundance.monitored) |>
+  dplyr::select(abundance.monitored) |>
   log()
 
 #Standardized abundance monitored as a vector
@@ -1492,7 +1492,7 @@ ttSM1 <- sk.pp.init |>
   ungroup() |>
   arrange(Time.t) |>
   drop_na(abundance.monitored) |>
-  select(Time.t)
+  dplyr::select(Time.t)
 
 #corresponding time vector
 ttSM1 <- ttSM1$Time.t
@@ -1679,7 +1679,7 @@ yt = snailkites.PP |>
   ungroup() |>
   arrange(Time.t) |>
   drop_na(Observed.y) |>
-  select(Observed.y) |>
+  dplyr::select(Observed.y) |>
   log()
 
 #Vector form
@@ -1690,7 +1690,7 @@ tt <- snailkites.PP |>
   ungroup() |>
   arrange(Time.t) |>
   drop_na(Observed.y) |>
-  select(Time.t)
+  dplyr::select(Time.t)
 
 #Time vector of the time series
 tt <- tt$Time.t
@@ -2024,7 +2024,7 @@ yt = snailkites.PP |>
   ungroup() |>
   arrange(Time.t) |>
   drop_na(Observed.y) |>
-  select(Observed.y) |>
+  dplyr::select(Observed.y) |>
   log()
 
 # Vector form
@@ -2035,7 +2035,7 @@ tt <- snailkites.PP |>
   ungroup() |>
   arrange(Time.t) |>
   drop_na(Observed.y) |>
-  select(Time.t)
+  dplyr::select(Time.t)
 
 # Time vector of the time series
 tt <- tt$Time.t
@@ -2311,7 +2311,7 @@ yt = snailkites.PP |>
   ungroup() |>
   arrange(Time.t) |>
   drop_na(Observed.y) |>
-  select(Observed.y) |>
+  dplyr::select(Observed.y) |>
   log()
 
 #Vector form
@@ -2325,7 +2325,7 @@ tt <- snailkites.PP |>
   ungroup() |>
   arrange(Time.t) |>
   drop_na(Observed.y) |>
-  select(Time.t)
+  dplyr::select(Time.t)
 
 #Time vector of the time series
 tt <- tt$Time.t
@@ -2494,7 +2494,7 @@ yt = snailkites.PP |>
   ungroup() |>
   arrange(Time.t) |>
   drop_na(Observed.y) |>
-  select(Observed.y) |>
+  dplyr::select(Observed.y) |>
   log()
 
 #Vector form
@@ -2508,7 +2508,7 @@ tt <- snailkites.PP |>
   ungroup() |>
   arrange(Time.t) |>
   drop_na(Observed.y) |>
-  select(Time.t)
+  dplyr::select(Time.t)
 
 #Time vector of the time series
 tt <- tt$Time.t
@@ -2638,7 +2638,7 @@ ytSM = snailkites.PP |>
   ungroup() |>
   arrange(Time.t) |>
   drop_na(abundance.monitored) |>
-  select(abundance.monitored) |>
+  dplyr::select(abundance.monitored) |>
   log()
 
 #Vector form
@@ -2652,7 +2652,7 @@ ttSM <- snailkites.PP |>
   ungroup() |>
   arrange(Time.t) |>
   drop_na(abundance.monitored) |>
-  select(Time.t)
+  dplyr::select(Time.t)
 
 #Time vector of the time series
 ttSM <- ttSM$Time.t
