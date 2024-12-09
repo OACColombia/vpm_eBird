@@ -21,10 +21,13 @@ editor_options:
 
 # Read me (begin here)
 
-This file is the code used for a paper \textit{to be submitted} to \textbf{\textit{Methods
-in Ecology and Evolution}}. We hope this code is applied for
-different users in an intuitive and practical way. Our aim is to describe and test a framework to estimate risk-based population viability - local persistence probability ($\phi$) from community science data ([eBird](https://ebird.org/home)). Using a case study, we assess the accuracy of local persistence probability estimates by comparing estimates using eBird data with those from robust systematic monitoring. Then, we conducted a sensitivity analysis to assess how robust are the local persistence estimates to limitation in the number of eBird observations available. We used the risk-based viable population monitoring framework ([Staples *et al.*,
-2005](https://conbio.onlinelibrary.wiley.com/doi/full/10.1111/j.1523-1739.2005.00283.x)), fitting robust continuous mechanistic state-space population models under density-independent ([Humbert *et al.*, 2009](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x)). This population dynamic can be (and we provide the code for) to density-dependent dynamics ([Dennis & Ponciano, 2014](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/13-1486.1)). We focused on the recent (since 2018) expanded population of Snail Kite ([*Rostrhamus sociabilis plumbeus*](https://birdsoftheworld.org/bow/species/snakit/cur/introduction)) in northcentral Florida, US, a species with long-term monitoring efforts following standardized protocols that provide benchmark population trends for comparison (see Section 2.1 in the main text).  
+This file is the code used for a paper \textit{submitted} to \textbf{\textit{Methods
+in Ecology and Evolution}}. We hope this code serve as a practical tutorial and  applied for different users in an intuitive way. Our aim is to describe and test a framework to estimate risk-based population viability - local persistence probability ($\phi$) from time series of community science data ([eBird](https://ebird.org/home)). Using a case study, we assessed the accuracy of local persistence probability estimates by comparing estimates using eBird data with those from standardized monitoring. Then, we conducted a sensitivity analysis to assess how behaves our approach to limitation in the number of eBird observations available. We used the risk-based viable population monitoring (VPM) framework ([Staples *et al.*,
+2005](https://conbio.onlinelibrary.wiley.com/doi/full/10.1111/j.1523-1739.2005.00283.x)), fitting continuous state-space population models under density-independent dynamics ([Humbert *et al.*, 2009](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x), but see below). 
+
+![The VPM framework - Figure 1 in the main text](results/Figure1.png){width=100%}
+
+This population dynamic can be (and we provide the code for) extended to density-dependent dynamics ([Dennis & Ponciano, 2014](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/13-1486.1)). We focused on the recent (since 2018) expanded population of Everglade snail kite ([*Rostrhamus sociabilis plumbeus*](https://birdsoftheworld.org/bow/species/snakit/cur/introduction)) in north-central Florida, US, a species with standardized monitoring efforts that provide benchmark population trends for comparison (see Section 2.1 in the main text).  
 
 Two continuous versions of the discrete-time equal sampling Gompertz State-Space model can be fitted with our approach:
 
@@ -35,7 +38,7 @@ We present the risk-based viable population monitoring framework (see
 [Staples *et al.*,
 2005](https://conbio.onlinelibrary.wiley.com/doi/full/10.1111/j.1523-1739.2005.00283.x)),
 estimating the probability of local persistence $\phi$;
-1-probability of crashing abundance below a specified threshold given a timeframe.
+1-probability of crashing abundance below a specified threshold given a simulation window in near future.
 
 The statistical properties for our proceedings are based on [Dennis *et al.* (1991)](https://esajournals.onlinelibrary.wiley.com/doi/10.2307/1943004),
 [Dennis *et al.* (2006)](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2),
@@ -45,7 +48,7 @@ and reference therein. We adjusted the functions and code published as
 supplementary information in [Humbert *et al.*, (2009)](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x)
 and [Dennis & Ponciano, (2014)](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/13-1486.1).
 Thus, users should first run all the packages and functions in the next
-section.
+section. Then, access eBird data and organize it as time series in spatiotemporal subsamples and estimate local persistence - monitoring population risk with community science data.
 
 \clearpage
 
@@ -74,11 +77,13 @@ section.
   library(ggpubr);
 ```
 
-## Special cases of the Gompertz state-space population dynamic model
+## Special cases of the Gompertz state-space population dynamics model
 
-We provide the rationale to use two special cases models of the discrete-time Gompertz State Space model ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)); the density dependent version that we heretofore denotes as the GSS model and the density-independent model (EGSS) from [Humbert *et al.* (2009)](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x). Let $N_t$ be the latent unobserved abundance population at time $t$, the ecological process in the GSS model. This abundance is defined as $N_t = N_{t-1} ~e^{a+b*\ln{N_{t-1}} + E_t}$), where $a$ and $b$ are constants representing population growth rate and density dependence, and $E_t$ is the environmental stochasticity or process noise, $E_t\sim \text{Normal}(0,\sigma^2)$ ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). On the logarithmic scale ($X_t = \ln{⁡N_t}$), the GSS becomes linear and follows an autoregressive model of order 1: $X_t = X_{t-1} + a + b*X_{t-1} + E_t$,  which can be simplify as $X_t = a + c*X_{t-1} + E_t$, where $c = b+1$ is a constant that represents the strength of density dependence ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2); [Ponciano *et al.*, 2018](https://doi.org/10.1016/j.tpb.2018.04.002); [Reddingius, 1971 in Acta Biotheor, 20, 1-208](https://scholar.google.com/scholar?hl=en&as_sdt=0%2C10&q=Gambling+for+existence.+A+discussion+of+some+theoretical+problems+in+animal+population+ecology&btnG=)). If $b=0$ ($c=1$), the GSS reduces to the density-independent model fully treated in state-space model form by [Humbert *et al.* (2009)](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x).
+We provide the rationale to use two special cases (continuous, diffusion process) models of the discrete-time Gompertz State Space model ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)); the density-dependent version that we heretofore denotes as the GSS model and the density-independent model (EGSS) from [Humbert *et al.* (2009)](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x). 
 
-The discrete GSS population model has four unknown parameters: $a$, $c$, $\sigma^2$, and $\tau^2$ ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). The transition probability distribution of this logarithmic abundance model is normal, with mean and variance changing as a function of time. The parameter $c$ represents the strength of density-dependence ([Ponciano *et al.*, 2018](https://doi.org/10.1016/j.tpb.2018.04.002)). If the strength of density dependence ($c$) ranges $-1<c<1$, the long-run probability distribution of log-abundance approaches a time-independent normal stationary distribution ($X_t→X_∞$), with mean $\frac{a}{1-c}$ and variance $\frac{\sigma^2}{1-c^2}$. Thus, instead of approaching a single population abundance value, or a carrying capacity like deterministic population models, the density dependent stochastic GSS model approaches a stationary distribution, a cloud of points around which the population fluctuates ([Dennis & Taper, 1994](https://doi.org/10.2307/2937041); [Wolda, 1989](https://doi.org/10.1007/BF00377095)). The mean of this probability distribution, $\frac{a}{1-c}$, represents a long-term expected population ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). As mentioned above, the density-independent stochastic exponential growth model of [Dennis *et al.* (1991)](https://esajournals.onlinelibrary.wiley.com/doi/10.2307/1943004) is attained when $b=0$ ($c=1$); the state equation then becomes $N_t = N_{t-1} ~e^{a + E_t}$ ([Dennis *et al.*, 1991](https://esajournals.onlinelibrary.wiley.com/doi/10.2307/1943004)). The state-space model formulation for these two models is completed with the specification of the sampling (observation) error model. Following [Dennis *et al.* (2006)](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2), we assumed that the log-observation at time $t$, $Y_t$, is a sample from the (stochastic) process model according to the equation $Y_t = X_t + F_t$; where the $F_t$ are independent and identically distributed normal random variables, i.e. $F_t \sim \text{Normal}(0,\tau^2)$. During transition growth dynamics, the EGSS model may more accurately represents population trends.
+Let $N_t$ be the latent unobserved abundance population at time $t$, the ecological process in the GSS model. This abundance is defined as $N_t = N_{t-1} ~e^{a+b*\ln{N_{t-1}} + E_t}$), where $a$ and $b$ are constants representing population growth rate and strength of density dependence, respectively, and $E_t$ is the environmental stochasticity or process noise, $E_t\sim \text{Normal}(0,\sigma^2)$ ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). On the logarithmic scale ($X_t = \ln{⁡N_t}$), the GSS becomes linear and follows an autoregressive model of order 1: $X_t = X_{t-1} + a + b*X_{t-1} + E_t$,  which can be simplify as $X_t = a + c*X_{t-1} + E_t$, where $c = b+1$ is a constant that represents the strength of density dependence ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2); [Ponciano *et al.*, 2018](https://doi.org/10.1016/j.tpb.2018.04.002); [Reddingius, 1971 in Acta Biotheor, 20, 1-208](https://scholar.google.com/scholar?hl=en&as_sdt=0%2C10&q=Gambling+for+existence.+A+discussion+of+some+theoretical+problems+in+animal+population+ecology&btnG=)). If $b=0$ ($c=1$), the GSS reduces to the density-independent model fully treated in state-space model form by [Humbert *et al.* (2009)](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x).
+
+The discrete GSS population model has four unknown parameters: $a$, $c$, $\sigma^2$, and $\tau^2$ ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). The transition probability distribution of this logarithmic abundance model is normal, with mean and variance changing as a function of time. The parameter $c$ represents the strength of density-dependence ([Ponciano *et al.*, 2018](https://doi.org/10.1016/j.tpb.2018.04.002)). If the strength of density dependence ($c$) ranges $-1<c<1$, the long-run probability distribution of log-abundance approaches a time-independent normal stationary distribution ($X_t→X_∞$), with mean $\frac{a}{1-c}$ and variance $\frac{\sigma^2}{1-c^2}$. Thus, instead of approaching a single population abundance value, or a carrying capacity like deterministic population models, the density-dependent stochastic GSS model approaches a stationary distribution, a cloud of points around which the population fluctuates ([Dennis & Taper, 1994](https://doi.org/10.2307/2937041); [Wolda, 1989](https://doi.org/10.1007/BF00377095)). The mean of this probability distribution, $\frac{a}{1-c}$, represents a long-term expected population size ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). As mentioned above, the density-independent stochastic exponential growth model of [Dennis *et al.* (1991)](https://esajournals.onlinelibrary.wiley.com/doi/10.2307/1943004) is attained when $b=0$ ($c=1$); the state equation then becomes $N_t = N_{t-1} ~e^{a + E_t}$ ([Dennis *et al.*, 1991](https://esajournals.onlinelibrary.wiley.com/doi/10.2307/1943004)). The state-space model formulation for these two models is completed with the specification of the sampling (observation) error model. Following [Dennis *et al.* (2006)](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2), we assumed that the log-observation at time $t$, $Y_t$, is a sample from the (stochastic) process model according to the equation $Y_t = X_t + F_t$; where the $F_t$ are independent and identically distributed normal random variables, i.e. $F_t \sim \text{Normal}(0,\tau^2)$. During transition growth dynamics, the EGSS model may more accurately represents population trends (but see [Dennis & Ponciano, 2014](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/13-1486.1) for details in non-stationary continuous GSS).
 
 Fitting both state-space models when equally sampled population abundances are available is straightforward ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)), yet unequally sampled populations over time tend to be the norm rather than the exception in ecology ([Dennis et al., 2010](https://doi.org/10.1890/08-1095.1)). By exploiting the connection of the EGSS and GSS models to diffusion processes, here we show how to connect these models to unequally sampled data to later extend inferences to the dynamic of local persistence (as mathematical complement of local extinction risks). Indeed, the logarithmic transformation in the GSS discrete model opens the opportunity for estimating the infinitesimal mean and variance under diffusion processes for unequal sampling; Brownian motion diffusion in the EGSS model ([Humbert *et al.*, 2009](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x)) and Ornstein-Uhlenbeck diffusion in the GSS model ([Dennis & Ponciano, 2014](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/13-1486.1)). Specific statistical properties can be found in the following section with the specific functions per model. 
 
@@ -139,7 +144,7 @@ Function to generate equation of a simple linear model in the figures
 
 ### Functions for the Brownian diffusion EGSS model
 
-The stochastic exponential growth model serve as a null hypothesis of density dependence models ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). The exponential stochastic process for $N_t$ could be defined as $N_t = N_0 \lambda^t + E_t$, where $λ^t$ expresses the finite rate of change ($\lambda^t = e^{a(t)}$); $a$ being the instantaneous, intrinsic, or maximum per capita rate of change), $N_0$ is the initial population ($N(0)$), and $E_t$ is the environmental stochasticity or process noise at time $t$, which follows a normal distribution with mean $0$ and variance $\sigma^2$ ($E_t\sim\text{Normal}(0,\sigma^2)$). On the logarithmic scale ($X_t=\text{ln}(N_t)$), the discrete-time process can be defined as a continuous Brownian diffusion process with the stochastic differential equation:
+The stochastic exponential growth model serve as a null hypothesis of density-dependence models ([Dennis *et al.*, 2006](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)). The exponential stochastic process for $N_t$ could be defined as $N_t = N_0 \lambda^t + E_t$, where $λ^t$ expresses the finite rate of change ($\lambda^t = e^{a(t)}$); $a$ being the instantaneous, intrinsic, or maximum per capita rate of change), $N_0$ is the initial population ($N(0)$), and $E_t$ is the environmental stochasticity or process noise at time $t$, which follows a normal distribution with mean $0$ and variance $\sigma^2$ ($E_t\sim\text{Normal}(0,\sigma^2)$). On the logarithmic scale ($X_t=\text{ln}(N_t)$), the discrete-time process can be defined as a continuous Brownian diffusion process with the stochastic differential equation:
 
 $$
 \begin{array}{ccc}
@@ -156,7 +161,7 @@ named $\mu = \ln{\lambda}$ in [Humbert *et al.* (2009)](https://nsojournals.onli
 although this notation is confusing for the OUSS notation), and $dW(t)$ is a random perturbation representing the environmental stochasticity or process
 noise (Itô log-transformation of $E_t$ from GSS in [Dennis *et al.* (2006)](https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9615%282006%2976%5B323%3Aeddpna%5D2.0.co%3B2)), with mean $0$ and variance $\sigma^2dt$, or the intensity of environmental noise scaled by $\beta$, with $\beta>0$ ([Humbert *et al.*, 2009](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x)). 
 
-The EGSS model includes a component in sampling times $t_i$ not equally spaced. Thus, we denoted the latent realized abundance (weekly high counts) as $n(0), n(t_1), n(t_2), ..., n(t_q)$. Let $x(t) = \ln{n(t)}$ and let $Y(t_i)$ be a value of $x(t)$ observed with error at time $t_i$. Then, our log-abundance observation model equation becomes $Y(t_i) = X(t_i) + F_i$, where $F_i$ follows a normal distribution with mean $0$ and variance $\tau^2$ ($F_i \sim \text{Normal}(0,\tau^2)$). This state-space model has four unknown parameters: $\ln \lambda = \theta_{density~independent}$ (the trend parameter or population growth rate under density independence; note the notation differs from [Humbert *et al.* (2009)](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x)), $\sigma^2$ (variability of process noise), $\tau^2$ (variability of observer noise), and $x_0$ (the initial log-abundance population).
+The EGSS model includes a component in sampling times $t_i$ not equally spaced. Thus, we denoted the latent realized abundance (e.g., weekly high counts in our case) as $n(0), n(t_1), n(t_2), ..., n(t_q)$. Let $x(t) = \ln{n(t)}$ and let $Y(t_i)$ be a value of $x(t)$ observed with error at time $t_i$. Then, our log-abundance observation model equation becomes $Y(t_i) = X(t_i) + F_i$, where $F_i$ follows a normal distribution with mean $0$ and variance $\tau^2$ ($F_i \sim \text{Normal}(0,\tau^2)$). This state-space model has four unknown parameters: $\ln \lambda = \theta_{density~independent}$ (the trend parameter or population growth rate under density independence; note the notation differs from [Humbert *et al.* (2009)](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x)), $\sigma^2$ (variability of process noise), $\tau^2$ (variability of observer noise), and $x_0$ (the initial log-abundance population).
 
 The EGSS model has a multivariate normal log-likelihood function given
 by (***EqA17*** in [Humbert *et al.*, (2009)](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x)):
@@ -819,16 +824,11 @@ download *Rostrhamus sociabilis* in Florida (US).
 
 ![Asking Snail Kite in Florida, US - screenshot of a previous download for June 2024](data_raw/SnailKite_Florida_access_eBird.png){width=50%} 
 
-In the options, include the sampling event data always is a good recommendation. In 
-Snail Kite for US it will save the sampling event, but for other Neotropical
-species tested in preliminary attempts, the sampling data was not
-included and the user should download the Sampling event data of 5.5 GB
-(comprised in `.tar` format). This step is required if you are
-interested in control for imperfect detection!!
+In the options, include the sampling event data always is a good recommendation. In snail kite for US it will save the sampling event, but for other Neotropical species tested in preliminary attempts, the sampling data was not included and the user should download the Sampling event data of 5.5 GB (comprised in `.tar` format). This step is required if you are interested in control for imperfect detection!!
 
 After submitting the request, the link to download will arrive to the
 email registered in your eBird account. You can deploy the `.txt` files
-in a `data_raw` directory to be called during the filtering.
+in a `data_raw` directory to be called during the refining process through filtering.
 
 ![Downloaded file](data_raw/files_deployment.png){width=20%}
 
@@ -865,13 +865,7 @@ f_sed <- "data_tmp/sed_Examples.txt"
 
 The construction of time-series of the individuals counted from
 eBird will assume spatiotemporal subsampling, selecting a single value
-with the high counts (assuming to be the minimum number of individuals)
-per week in spatial sampling units of \~ $100 \text{ km}^2$. To construct a
-discrete global grid system, we can use the function `dgconstruct()` in
-the package `dgconstruct`; the argument `spacing` indicates the spacing
-between the center of adjacent cells (related with Characteristic Length
-Scale - CLS), in our case `spacing = 11` indicates a diameter of
-\~$11\ km$, representing an area of $95.98\ km^2$ (\~ $100\ km^2$).
+with the high counts (assuming to be the minimum number of individuals detected) per week in spatial sampling units of \~ $100 \text{ km}^2$. To construct a discrete global grid system, we can use the function `dgconstruct()` in the package `dgconstruct`; the argument `spacing` indicates the spacing between the center of adjacent cells (related with Characteristic Length Scale - CLS), in our case `spacing = 11` indicates a diameter of \~$11\ km$, representing an area of $95.98\ km^2$ (\~ $100\ km^2$).
 
 ```{r construct discrete global grid}
 #specify seed for random number generation
@@ -885,8 +879,7 @@ of the eBird data (see [Strimas-Mackey *et al.* 2023](https://ebird.github.io/eb
 first function `auk_ebd()` includes the path of the eBird data
 downloaded and saved in your working directory, and it is the initial
 creation of an `auk_ebd` object. Then, different functions serve to
-filter the data by the metadata of the checklists. In order in the code
-below, by protocol (`auk_protocol()`; only traveling or stationary), by
+filter the data by the metadata of the checklists. We followed the next order in below, by protocol (`auk_protocol()`; only traveling or stationary), by
 distance (`auk_distance()`, $≤5$ km), by duration (`auk_duration()`, $≤5$
 hours, note the units are minutes: $300$), and only complete lists
 (`auk_complete()`). Then, the filters defined are converted to an AWK
@@ -970,8 +963,7 @@ saveRDS(SnailKite, "data_tmp/SnailKiteCellsID_filtered.rds")
 ## Time series of eBird weekly high-counts
 
 We adjusted the time-series from the 1st week of 2018 (January) to the
-last with data of 2024 (September). Since 2018, Snail kites reached more than 1000
-records.
+last with data of 2024 (September). Since 2018, snail kites reached more than 1000 annualy records.
 
 ```{r temporal bias}
 SnailKite <- readRDS("data_tmp/SnailKiteCellsID_filtered.rds")
@@ -987,12 +979,12 @@ abline(h = 1000, v = 2017, col = "red")
 dev.off()
 ```
 
-![Histogram of the number of eBird checklists per year for Florida Snail kites. Red lines indicate our temporal sampling bias threshold (more than 1000 checklists per year), concentrating our sampling between January 2018 and May 2024.](data_tmp/FigSI-1_HistogramTemporalBias.png)
+![Histogram of the number of eBird checklists per year for Florida Snail kites. Red lines indicate our temporal sampling bias threshold (more than 1000 checklists per year), concentrating our sampling between January 2018 and September 2024.](data_tmp/FigSI-1_HistogramTemporalBias.png)
 
 In addition, the spatial cell with higher records overlaps with the
 Payne's Prairie State Park wetland in Alachua County, north central
-Florida, where Snail kites established in 2018. Thus, we
-extracted the high count per week in the cell of Payne's Prairie.
+Florida, where snail kites established in 2018. We
+extracted the high count per week in the cell of Payne's Prairie to illustrate our method.
 
 But first, we filter by observation data greater than or equal to
 `2018-01-01`, and generate a new variable called `Time.t`, to have the
@@ -1027,7 +1019,7 @@ saveRDS(snailkites.week.counts, "data_tmp/SnailKiteCellsCountsWeek.rds")
 ```
 
 This file will serve to generate a map figure with the sampling effort
-after filtering the eBird data following best practices (see [Johnston *et al.*, 2021](https://onlinelibrary.wiley.com/doi/10.1111/ddi.13271)).
+after filtering the eBird data following best practices for analysis (see [Johnston *et al.*, 2021](https://onlinelibrary.wiley.com/doi/10.1111/ddi.13271)).
 
 \clearpage
 
@@ -1035,7 +1027,7 @@ after filtering the eBird data following best practices (see [Johnston *et al.*,
 
 We focused on the sampling unit with higher number of checklists, which
 correspond to the Payne's Prairie State Park wetland system in Alachua
-County. For this locality, we also have counts published from [Poli *et al.* (2020)](https://bioone.org/journals/the-wilson-journal-of-ornithology/volume-132/issue-1/1559-4491-132.1.183/Recent-breeding-range-expansion-of-the-endangered-Snail-Kite-Rostrhamus/10.1676/1559-4491-132.1.183.full),
+County. For this locality, we also can access counts published from [Poli *et al.* (2020)](https://bioone.org/journals/the-wilson-journal-of-ornithology/volume-132/issue-1/1559-4491-132.1.183/Recent-breeding-range-expansion-of-the-endangered-Snail-Kite-Rostrhamus/10.1676/1559-4491-132.1.183.full),
 and 2 areas under current monitoring: Payne's Prairie and Payne's
 Prairie Central.
 
@@ -1110,10 +1102,10 @@ arrow1 <- tibble(
 )
 ```
 
-and the figure generated
+and the figure is generated with `ggplot()`
 
-```{r generate map Fig1, eval=FALSE}
-Fig1a <- ggplot() +
+```{r generate map Fig2, eval=FALSE}
+Fig2a <- ggplot() +
   geom_sf(data = world1)+
   geom_sf(data=wrapped_gridSnailKite,
           aes(color = count, 
@@ -1135,7 +1127,7 @@ Fig1a <- ggplot() +
   labs(y = "Latitude",
        x = "Longitude",       
        tag = expression(bold("(a)")),
-       title = "Snail Kites in Florida",
+       title = "Snail kites in Florida",
        subtitle = "eBird effort in spatial sampling units",
        color = expression(Log["10"]~"lists"),
        fill = expression(Log["10"]~"lists")) +
@@ -1156,7 +1148,7 @@ arrow2 <- tibble(
   y2 = c(29.7, 29.475, 29.65, 29.535)
 )
 
-Fig1b <- ggplot() +
+Fig2b <- ggplot() +
   geom_sf(data=wrapped_gridSnailKite,
           aes(color = count, 
               fill = count)) +
@@ -1178,7 +1170,7 @@ Fig1b <- ggplot() +
   labs(y = "Latitude",
        x = "Longitude",       
        tag = expression(bold("(b)")),
-       title = "Snail Kites in Payne's Prairie wetland",
+       title = "Snail kites in Payne's Prairie wetland",
        subtitle = "with eBird records and popular localities") +
   annotate("text", x = -82.25, y = 29.71, label = "Sweetwater Wetlands \n Park") +
   annotate("text", x = -82.4, y = 29.475, label = "US-441") +
@@ -1190,16 +1182,16 @@ Fig1b <- ggplot() +
   theme_classic()+
   theme(legend.position = "none")
 
-Fig1 <- grid.arrange(Fig1a, Fig1b, ncol = 2, widths = c(1, 2))
+Fig2 <- grid.arrange(Fig2a, Fig2b, ncol = 2, widths = c(1, 2))
 
-ggsave("results/Fig1_SnailKitesMap.pdf", 
-       plot = Fig1, dpi = 300, width = 10, height = 5, units = "in")
+ggsave("results/Fig2_SnailKitesMap.pdf", 
+       plot = Fig2, dpi = 300, width = 10, height = 5, units = "in")
 
-ggsave("results/Fig1_SnailKitesMap.png", 
-       plot = Fig1, dpi = 300, width = 10, height = 5, units = "in")
+ggsave("results/Fig2_SnailKitesMap.png", 
+       plot = Fig2, dpi = 300, width = 10, height = 5, units = "in")
 ```
 
-![Map of spatial eBird sampling of Snail kites in Florida (a) and zoom to the hexagonal cell with higher records in eBird (b). Each hexagonal cell corresponds to an area of ~100 km2, and the bright color identify cells with higher sampling in eBird (note log10 scale). A single cell in northcentral Florida (~Payne’s Prairie Preserve State Park, ~85 km2) concentrated 7,291 checklists (intense yellow color and red arrow in (a), with transparency in (b)). Records of Snail Kite in Payne’s Prairie display some popular visited sites within this sampling unit (b), some overlapping or surrounding areas with standardized long-term monitoring surveys. *Figure 1 in Main text*](results/Fig1_SnailKitesMap.png){width=80%}
+![*Figure 2 in Main text*. Map of spatial eBird sampling of Snail kites in Florida (a) and zoom to the hexagonal cell with higher records in eBird (b)](results/Fig2_SnailKitesMap.png){width=100%}
 
 \FloatBarrier
 
@@ -1209,7 +1201,7 @@ Joining eBird and standardized monitoring (our benchmark) in data set
 `snailkites.PP`.
 
 First, load saved data from eBird, identifying the cell with more
-checklists.
+checklists. Recall that different packages in `R` might include same name of functions, that could generate conflict for replicability (e.g., `select()` in packages `MASS` and `dplyr`). To avoid confusion, users can add the name of the package (e.g., `dplyr::select()`)
 
 ```{r load data filtered and select PP cell}
 #load saved data
@@ -1229,8 +1221,7 @@ CellTop #ID of the cell with more records - Payne's Prairie
 ```
 
 Call the data from [Poli *et al.* (2020)](https://bioone.org/journals/the-wilson-journal-of-ornithology/volume-132/issue-1/1559-4491-132.1.183/Recent-breeding-range-expansion-of-the-endangered-Snail-Kite-Rostrhamus/10.1676/1559-4491-132.1.183.full),
-and organize in the same way that eBird data (the highest value per week since
-January 2018).
+and organize in the same way that eBird data (the highest value per week since January 2018).
 
 ```{r published data for PP}
 #The monitoring data of Poli et al. (2020)
@@ -1282,7 +1273,7 @@ snail.kite.project.pp <- read_csv("data_raw/Snail kite surveys on PP and PPC 201
 Combine with the published data to have a single Standardized Monitoring
 abundance data set, named `snail.kite.project.pp`. Here is important to
 be sure that the data set is organized by the variable `Time.t` (week
-since `2018-01-01` id), applying the function `arrange()`.
+since `2018-01-01` id in our case), applying the function `arrange()`.
 
 ```{r combining SK-PP}
 #including Poli et al.
@@ -1379,9 +1370,7 @@ snailkites.PP |>
 ```
 
 Assumed initial population establishment is depicted to the left of the 
-vertical dotted gray line (weeks 1-87;January 2018-August 2019). Local persistence 
-probability estimation ($\hat{\phi}$) will correspond to the weeks to the 
-right of the dotted gray line ($n_{eBird} = 262$, $n_{SM}=33$).
+vertical dotted gray line (weeks 1-87;January 2018-August 2019). Local persistence probability estimation ($\hat{\phi}$) will correspond to the weeks to the right of the dotted gray line ($n_{eBird} = 262$, $n_{SM}=33$).
 
 \clearpage
 
@@ -1391,10 +1380,9 @@ In the next section, we provide a step by step example and the iterated
 process for each week estimation of local persistence probability 
 ($\hat{\phi}$).
 
-## Fit dynamic population model to a first part of the time-series
+## Fit population dynamics model to a first part of the time-series
 
-Let's fit an EGSS model for the first two years – weeks from 1 to 87, n = 78, 
-matching Standardized monitoring data, including the published data ([Poli *et al.*, 2020](https://bioone.org/journals/the-wilson-journal-of-ornithology/volume-132/issue-1/1559-4491-132.1.183/Recent-breeding-range-expansion-of-the-endangered-Snail-Kite-Rostrhamus/10.1676/1559-4491-132.1.183.full)).
+Let's fit an EGSS model for the first two years – weeks from 1 to 87, n = 78, matching Standardized monitoring data, including the published data ([Poli *et al.*, 2020](https://bioone.org/journals/the-wilson-journal-of-ornithology/volume-132/issue-1/1559-4491-132.1.183/Recent-breeding-range-expansion-of-the-endangered-Snail-Kite-Rostrhamus/10.1676/1559-4491-132.1.183.full)).
 
 First, load the data saved and filter `Time.t` between `1:87`.
 
@@ -1460,7 +1448,7 @@ sk.egss.predict.init <- egss_predict(yt = yt1,
 head(sk.egss.predict.init[[1]])
 ```
 
-As we put the `plot.it` argument `TRUE`, we have a figure of the
+As we put the `plot.it` argument as `TRUE`, we have a figure of the
 predicted and observed trajectory. The `head()`
 of the object shows the vector time (`Time.t`, week since January 2018,
 in our case), the predicted abundance (`Predict.EGSS.REML`), and the
@@ -1511,12 +1499,7 @@ Again, the values correspond (in order) to the trend parameter
 ($\hat{\tau}_{SM}^2=0.0188$), and initial population
 ($\hat{x_0}=0.1258$). 
 
-It is interesting that $\hat{\sigma}_{SM}^2$ is
-similar ($\sim 0.03$) to $\hat{\sigma}_{eBird}^2$, as well as
-$e^{x_0 = 0.126}_{SM}\approx1$ and $e^{x_0 = -0.013}_{eBird}\approx1$,
-but the observation error is about an order of magnitude bigger in eBird data
-with respect to the standardized monitoring ($\hat{\tau}_{SM}^2=0.018$ $<<$
-$\hat{\tau}_{eBird}^2=0.266$). The expected change in log-abundance per week describe lower change in eBird ($\hat{\theta}_{eBird}=0.034$) and higher changes in standardized monitoring weekly counts ($\hat{\theta}_{SM}=0.056$).
+It is interesting that $\hat{\sigma}_{SM}^2$ is very similar ($\sim 0.03$) than $\hat{\sigma}_{eBird}^2$, as well as $e^{x_0 = 0.126}_{SM}\approx1$ and $e^{x_0 = -0.013}_{eBird}\approx1$, but the observation error is over an order of magnitude bigger in eBird data with respect to the standardized monitoring ($\hat{\tau}_{SM}^2=0.018$ $<<$ $\hat{\tau}_{eBird}^2=0.266$). The expected change in log-abundance per week describe lower change in eBird ($\hat{\theta}_{eBird}=0.034$) and higher changes in standardized monitoring weekly counts ($\hat{\theta}_{SM}=0.056$).
 
 Let's predict the trajectory and change the column names for the
 figure.
@@ -1530,15 +1513,14 @@ skSM.egss.predict.init <- egss_predict(yt = ytSM1,
 colnames(skSM.egss.predict.init[[1]]) <- c("Time.t", "Estimated_SKProj_EGSS","abundance.monitored")
 ```
 
-To make the figure 2, we combine the predicted trajectories in a single
-data frame to use `tidyverse` and `ggplot`.
+To make the figure 3 of the main text, we combine the predicted trajectories in a single data frame to use `tidyverse` and `ggplot`.
 
-```{r Figure 2a}
+```{r Figure 3a}
 sk.Estimated <- data.frame(sk.egss.predict.init) |>
   left_join(data.frame(skSM.egss.predict.init)) |>
   left_join(datesPP) #this recover the observation date per week
 
-FigS2a <- sk.Estimated |>
+FigS3a <- sk.Estimated |>
   pivot_longer(cols = !c(Time.t,observation.date),
                names_to = "group",
                values_to = "Abundance") |>
@@ -1599,20 +1581,19 @@ FigS2a <- sk.Estimated |>
                                    "Predicted trajectory (eBird - EGSS)"))+
     theme_classic()+
     theme(legend.position = c(0.3, 0.85))
-FigS2a
+FigS3a
 ```
 
-How much is the prediction out of the observed data in SM? Lets generate Figure
-2b (we can draw the equation in the figure with our function `lm_eqn()`, removed for now).
+How much is the prediction out of the observed data in SM? Lets generate Figure 3b (we can draw the equation in the figure with our function `lm_eqn()`, removed for now).
 
-```{r Figure 2b}
+```{r Figure 3b}
 #Predicted EGSS from eBird ~ Observed counts SM
 lm(Estimated_eBird_EGSS~abundance.monitored, data = sk.Estimated)
 #Predicted EGSS from Standardized Monitored ~ Observed counts SM
 lm(Estimated_SKProj_EGSS~abundance.monitored, data = sk.Estimated)
 
 
-FigS2b <- ggplot(sk.Estimated)+
+FigS3b <- ggplot(sk.Estimated)+
   geom_abline(slope = 1)+
   geom_smooth(aes(x=abundance.monitored, y=Estimated_SKProj_EGSS),
               method = "lm", color = "#fc8d59", 
@@ -1642,35 +1623,31 @@ FigS2b <- ggplot(sk.Estimated)+
   theme_classic()
 
 #and combine in the figure
-FigS2 <- grid.arrange(FigS2a, FigS2b, ncol = 2, widths = c(1.5, 1))
+FigS3 <- grid.arrange(FigS3a, FigS3b, ncol = 2, widths = c(1.5, 1))
 ```
 
 It looks not good in the `Rmd` file, but it is saved with good proportions
 
-```{r exporting figure 2, eval=TRUE}
-ggsave("results/Figure2ab_EstimatedTrajectory2initdays.pdf", 
-       plot = FigS2, dpi = 300, width = 10, height = 4, units = "in")
+```{r exporting figure 3, eval=TRUE}
+ggsave("results/Figure3ab_EstimatedTrajectory2initdays.pdf", 
+       plot = FigS3, dpi = 300, width = 10, height = 4, units = "in")
 
-ggsave("results/Figure2ab_EstimatedTrajectory2initdays.png", 
-       plot = FigS2, dpi = 300, width = 10, height = 4, units = "in")
+ggsave("results/Figure3ab_EstimatedTrajectory2initdays.png", 
+       plot = FigS3, dpi = 300, width = 10, height = 4, units = "in")
 ```
 
-![Weekly predicted (triangles) and observed (circles) high counts of the number of Snail Kites from standardized monitoring (orange) and eBird (blue). Predicted values correspond to Exponential Growth State-Space (EGSS) models fitted for the two datasets during population establishment (week 1: January 2018 to week 87: August 2019) in northcentral Florida (a). The predicted trajectory of standardized monitoring data matched closely the weekly high counts data ($y=-0.41+0.95x; R^2=0.985$), while the predicted trajectory from eBird data was far low of the identity ($y=2.6+0.056x; R^2=0.274$) compared with observed standardized monitored high counts; solid black line in (b) is the identity (1:1 relationship). *Figure 2 in Main text*](results/Figure2ab_EstimatedTrajectory2initdays.png){width=80%}
+![*Figure 2 in Main text*Weekly predicted (triangles) and observed (circles) high counts of the number of Snail Kites from standardized monitoring (orange) and eBird (blue).](results/Figure3ab_EstimatedTrajectory2initdays.png){width=80%}
 
 \FloatBarrier
 
 ## Three timeframe (~three, ~five, ~ten years) of first estimation $\hat{\phi}$
 
-With the estimated model parameters and the data during establishment of the population (up to week 87 with observations, $i=1$ is week 88), we estimated the
-probability that the population declines to values below a critical
+With the estimated model parameters and the data during establishment of the population (up to week 87 with observations, $i=1$ is week 88), we estimated the probability that the population declines to values below a critical
 threshold ($N_{critical}$, as the critical number of individuals to
-assume quasi-extinction), in three different periods or given timeframes
-(\~three years $150$ weeks, \~five years $250$ weeks, and \~ten years $500$ weeks). 
+assume quasi-extinction), in three different periods, given timeframes, or moving simulation windows (\~three years $150$ weeks, \~five years $250$ weeks, and \~ten years $500$ weeks). 
+
 Let assume $N_{critical~eBird} = \frac{1}{2} (e^{\bar{y}}) = 5.58$. The probability 
-of persistence in each trajectory $m$ ($\phi_m$) will be the mathematical complement of the number of time steps within the three different periods (150, 250, 500) that
-the population was lower than the threshold. The resulting probability $\phi_m$ is recorded for each trajectory $m$ ($M = 50,000$), estimating the
-expected value ($\hat{\phi}$) and standard deviation ($\sqrt{Var(\hat{\phi})}$)
-as variability of the estimation per each week with data.
+of persistence in each trajectory $m$ ($\phi_m$) will be the mathematical complement of the number of time steps within the three different periods (150, 250, 500) that the population was lower than the threshold. The resulting probability $\phi_m$ is recorded for each trajectory $m$ ($M = 50,000$), estimating the expected value ($\hat{\phi}$) and standard deviation ($\sqrt{Var(\hat{\phi})}$) as variability of the estimation per each week with data.
 
 ```{r set variables}
 #variables:
@@ -2944,8 +2921,10 @@ How is changing in 3 moments $\hat{\phi}_{SM\ \sim ten~years~simulated}$?
 
 Call the data and establish transformation of second Y-axis (supplementary figure to include time series counts and $\phi$).
 
-```{r load data to figure 3}
+```{r load data to figure 4}
 #Load data saved
+  #dates
+  datesPP <- readRDS("data_tmp/datesTimeseriesPaynesPrairie.rds")
   #data organized
   snailkites.PP <- readRDS("data_tmp/snailkitesPP.rds")
   #local persistence from eBird - OUSS or EGSS
@@ -2986,7 +2965,7 @@ head(phi_combined)
 
 Then, we add the dates and filter by the three Timeframes
 
-```{r figure 3a}
+```{r figure 4a}
 #add dates while filtering Timeframe
 phi_data_plot <- datesPP |> 
   left_join(phi_combined |> 
@@ -3054,7 +3033,7 @@ FigOUSS_A <- ggplot(phi_data_plot,
   labs(x = "Observation date",
        y = expression(italic(phi)),
        tag = expression(bold("(a)")),
-       title = "Timeframe: 150 weeks or ~3 years")  +
+       title = "Simulation window: 150 weeks or ~3 years")  +
   coord_cartesian(ylim = c(0, 1))+
   scale_x_date(limits = c(snailkites.PP$observation.date[78],
                           max(snailkites.PP$observation.date)),
@@ -3066,7 +3045,7 @@ FigOUSS_A <- ggplot(phi_data_plot,
                                 expression(italic(phi)[SM])))+
   theme_bw() +
   theme(legend.title = element_blank(),
-        legend.position = c(0.85, 0.85),
+        legend.position = c(0.5, 0.8),
         legend.spacing.y = unit(-0.5, "cm"),
         legend.background = element_blank(),
         legend.box.background = element_rect(colour = "black"))+
@@ -3078,7 +3057,7 @@ FigOUSS_A
 #Only EGSS comparison
 
 #Figure overlap phi
-Figure3a <- ggplot(phi_data_plot, 
+Figure4a <- ggplot(phi_data_plot, 
                 aes(x = observation.date, y = phi_values)) +
   geom_vline(xintercept = snailkites.PP$observation.date[78], 
              color = "gray", linetype = "dotted") +
@@ -3102,7 +3081,7 @@ Figure3a <- ggplot(phi_data_plot,
   labs(x = "Observation date",
        y = expression(italic(phi)),
        tag = expression(bold("(a)")),
-       title = "Timeframe: 150 weeks or ~3 years")  +
+       title = "Simulation window: 150 weeks or ~3 years")  +
   coord_cartesian(ylim = c(0, 1))+
   scale_x_date(limits = c(snailkites.PP$observation.date[78],
                           max(snailkites.PP$observation.date)),
@@ -3125,11 +3104,11 @@ Figure3a <- ggplot(phi_data_plot,
   guides(color = guide_legend(ncol=2),
          shape = guide_legend(ncol=2))
 
-Figure3a
+Figure4a
 ```
 
 
-```{r figure 3b}
+```{r figure 4b}
 #add dates while filtering Timeframe
 phi_data_plot <- datesPP |> 
   left_join(phi_combined|> filter(Timeframe == "250 weeks or ~5 years")) |>
@@ -3196,7 +3175,7 @@ FigOUSS_B <- ggplot(phi_data_plot,
   labs(x = "Observation date",
        y = expression(italic(phi)),
        tag = expression(bold("(b)")),
-       title = "Timeframe: 250 weeks or ~5 years")  +
+       title = "Simulation window: 250 weeks or ~5 years")  +
   coord_cartesian(ylim = c(0, 1))+
   scale_x_date(limits = c(snailkites.PP$observation.date[78],
                           max(snailkites.PP$observation.date)),
@@ -3219,7 +3198,7 @@ FigOUSS_B
 #Only EGSS comparison
 
 #Figure overlap phi
-Figure3b <- ggplot(phi_data_plot, 
+Figure4b <- ggplot(phi_data_plot, 
                 aes(x = observation.date, y = phi_values)) +
   geom_vline(xintercept = snailkites.PP$observation.date[78], 
              color = "gray", linetype = "dotted") +
@@ -3243,7 +3222,9 @@ Figure3b <- ggplot(phi_data_plot,
   labs(x = "Observation date",
        y = expression(italic(phi)),
        tag = expression(bold("(b)")),
-       title = "Timeframe: 250 weeks or ~5 years")  +
+       title = "Simulation window: 250 weeks or ~5 years",
+       color = "Dataset",
+       fill = "Dataset")  +
   coord_cartesian(ylim = c(0, 1))+
   scale_x_date(limits = c(snailkites.PP$observation.date[78],
                           max(snailkites.PP$observation.date)),
@@ -3260,11 +3241,11 @@ Figure3b <- ggplot(phi_data_plot,
   theme_bw() +
   theme(legend.position = "none")
 
-Figure3b
+Figure4b
 ```
 
 
-```{r figure 3c}
+```{r figure 4c}
 #add dates while filtering Timeframe
 phi_data_plot <- datesPP |> 
   left_join(phi_combined|> filter(Timeframe == "500 weeks or ~10 years")) |>
@@ -3331,7 +3312,7 @@ FigOUSS_C <- ggplot(phi_data_plot,
   labs(x = "Observation date",
        y = expression(italic(phi)),
        tag = expression(bold("(c)")),
-       title = "Timeframe: 500 weeks or ~10 years")  +
+       title = "Simulation window: 500 weeks or ~10 years")  +
   coord_cartesian(ylim = c(0, 1))+
   scale_x_date(limits = c(snailkites.PP$observation.date[78],
                           max(snailkites.PP$observation.date)),
@@ -3354,7 +3335,7 @@ FigOUSS_C
 #Only EGSS comparison
 
 #Figure overlap phi
-Figure3c <- ggplot(phi_data_plot, 
+Figure4c <- ggplot(phi_data_plot, 
                 aes(x = observation.date, y = phi_values)) +
   geom_vline(xintercept = snailkites.PP$observation.date[78], 
              color = "gray", linetype = "dotted") +
@@ -3378,7 +3359,7 @@ Figure3c <- ggplot(phi_data_plot,
   labs(x = "Observation date",
        y = expression(italic(phi)),
        tag = expression(bold("(c)")),
-       title = "Timeframe: 500 weeks or ~10 years")  +
+       title = "Simulation window: 500 weeks or ~10 years")  +
   coord_cartesian(ylim = c(0, 1))+
   scale_x_date(limits = c(snailkites.PP$observation.date[78],
                           max(snailkites.PP$observation.date)),
@@ -3395,41 +3376,41 @@ Figure3c <- ggplot(phi_data_plot,
   theme_bw() +
   theme(legend.position = "none")
 
-Figure3c
+Figure4c
 ```
 
 And combine the figures
 
 ```{r exporting Figure 3 - extended figure}
 #and combine in the figure
-Figure3Ext <- grid.arrange(FigOUSS_A, FigOUSS_B, FigOUSS_C, 
+Figure4Ext <- grid.arrange(FigOUSS_A, FigOUSS_B, FigOUSS_C, 
                           ncol = 1)
 
 #lets saved it with good proportions
-ggsave("results/Figure3_Extended_OUSS_EGSS_3-5-10yrsSimulated.pdf", 
-       plot = Figure3Ext, dpi = 300, width = 12, height = 9, units = "in")
+ggsave("results/Figure4_Extended_OUSS_EGSS_3-5-10yrsSimulated.pdf", 
+       plot = Figure4Ext, dpi = 300, width = 12, height = 9, units = "in")
 
-ggsave("results/Figure3_Extended_OUSS_EGSS_3-5-10yrsSimulated.png", 
-       plot = Figure3Ext, dpi = 300, width = 12, height = 9, units = "in")
+ggsave("results/Figure4_Extended_OUSS_EGSS_3-5-10yrsSimulated.png", 
+       plot = Figure4Ext, dpi = 300, width = 12, height = 9, units = "in")
 ```
 
-![Estimated local persistence probability ($\hat{\phi}$ +/- standard deviation) during ~5 years of monitoring (September 2019 to September 2024) after 50,000 population trajectories simulated for three timeframes (a-c). The shape of the points in the central column shows the model selected in each week of estimation (EGSS and OUSS, the preference of the latter by the model suggestion of density dependence). Model selection was conducted for the benchmark (right column), but all suggested density-independent dynamic (EGSS). Higher temporal resolution evident in eBird (n = 262) when compared with standardized monitored data (n = 33).](results/Figure3_Extended_OUSS_EGSS_3-5-10yrsSimulated.png){width=80%}
+![Estimated local persistence probability ($\hat{\phi}$ +/- standard deviation) during ~5 years of monitoring (September 2019 to September 2024) after 50,000 population trajectories simulated for three timeframes (a-c). The shape of the points in the central column shows the model selected in each week of estimation (EGSS and OUSS, the preference of the latter by the model suggestion of density dependence). Model selection was conducted for the benchmark (right column), but all suggested density-independent dynamic (EGSS). Higher temporal resolution evident in eBird (n = 262) when compared with standardized monitored data (n = 33).](results/Figure4_Extended_OUSS_EGSS_3-5-10yrsSimulated.png){width=100%}
 
 
-```{r exporting Figure 3}
+```{r exporting Figure 4}
 #and combine in the figure
-Figure3 <- grid.arrange(Figure3a, Figure3b, Figure3c, 
+Figure4 <- grid.arrange(Figure4a, Figure4b, Figure4c, 
                           ncol = 1)
 
 #lets saved it with good proportions
-ggsave("results/Figure3_PLocalPersi_3-5-10yrsSimulated.pdf", 
-       plot = Figure3, dpi = 300, width = 5.5, height = 8, units = "in")
+ggsave("results/Figure4_PLocalPersi_3-5-10yrsSimulated.pdf", 
+       plot = Figure4, dpi = 300, width = 5.5, height = 8, units = "in")
 
-ggsave("results/Figure3_PLocalPersi_3-5-10yrsSimulated.png", 
-       plot = Figure3, dpi = 300, width = 5.5, height = 8, units = "in")
+ggsave("results/Figure4_PLocalPersi_3-5-10yrsSimulated.png", 
+       plot = Figure4, dpi = 300, width = 5.5, height = 8, units = "in")
 ```
 
-![Estimated local persistence probability ($\hat{\phi}$ +/- standard deviation) during ~5 years of monitoring (October 2019 to July 2024) after 50,000 population trajectories simulated for three timeframes (a-c). For each week of estimation, a density independence model (EGSS) was fitted for the observation time series, estimate parameters, and simulate trajectories. Higher temporal resolution is evident in eBird (n = 262) when compared with standardized monitored data (n = 33). See extended supplementary figure S6 with the observed abundance time series. *Figure 3 in Main text*](results/Figure3_PLocalPersi_3-5-10yrsSimulated.png){width=80%}
+![*Figure 4 in Main text*. Estimated local persistence probability ($\hat{\phi}$ +/- standard deviation) during ~5 years of monitoring (October 2019 to July 2024) after 50,000 population trajectories simulated for three timeframes (a-c). ](results/Figure4_PLocalPersi_3-5-10yrsSimulated.png){width=80%}
 
 How correlated are the $\hat{\phi}$?
 
@@ -3640,7 +3621,7 @@ ggsave("results/Figure3_timeseries_PLocalPersi150weeks.png",
        plot = Fig3, dpi = 300, width = 16, height = 6, units = "in")
 ```
 
-![Time series of weekly high counts of Snail kites in Payne's Prairie wetland from eBird (a) and standardized monitoring surveys (b), with local persistence probability ($\phi$) +/- standard deviation estimated for each dataset after 50,000 population trajectories simulated. (c) Local persistence probability extimated from eBird data plotted against local persistence probability estimated from standardized monitored, with standard deviation. Estimation of $\phi$ from 50,000 trajectories in a timeframe of \~3 years (150 weeks). Solid black line is the line of identity, while dashed black line is linear regression (equation in gray).](results/Figure3_timeseries_PLocalPersi150weeks.png){width=80%}
+![Time series of weekly high counts of Snail kites in Payne's Prairie wetland from eBird (a) and standardized monitoring surveys (b), with local persistence probability ($\phi$) +/- standard deviation estimated for each dataset after 50,000 population trajectories simulated. (c) Local persistence probability extimated from eBird data plotted against local persistence probability estimated from standardized monitored, with standard deviation. Estimation of $\phi$ from 50,000 trajectories in a timeframe of \~3 years (150 weeks). Solid black line is the line of identity, while dashed black line is linear regression (equation in gray).](results/Figure3_timeseries_PLocalPersi150weeks.png){width=100%}
 
 \FloatBarrier
 
@@ -3836,7 +3817,7 @@ ggsave("results/Figure3_timeseries_PLocalPersi250weeks.png",
        plot = Fig3, dpi = 300, width = 16, height = 6, units = "in")
 ```
 
-![Time series of weekly high counts of Snail kites in Payne's Prairie wetland from eBird (a) and standardized monitoring surveys (b), with local persistence probability ($\phi$) +/- standard deviation estimated for each dataset after 50,000 population trajectories simulated. (c) Local persistence probability extimated from eBird data plotted against local persistence probability estimated from standardized monitored, with standard deviation. Estimation of $\phi$ from 50,000 trajectories in a timeframe of \~5 years (250 weeks). Solid black line is the line of identity, while dashed black line is linear regression (equation in gray).](results/Figure3_timeseries_PLocalPersi250weeks.png){width=80%}
+![Time series of weekly high counts of Snail kites in Payne's Prairie wetland from eBird (a) and standardized monitoring surveys (b), with local persistence probability ($\phi$) +/- standard deviation estimated for each dataset after 50,000 population trajectories simulated. (c) Local persistence probability extimated from eBird data plotted against local persistence probability estimated from standardized monitored, with standard deviation. Estimation of $\phi$ from 50,000 trajectories in a timeframe of \~5 years (250 weeks). Solid black line is the line of identity, while dashed black line is linear regression (equation in gray).](results/Figure3_timeseries_PLocalPersi250weeks.png){width=100%}
 
 \FloatBarrier
 
@@ -4032,7 +4013,7 @@ ggsave("results/Figure3_timeseries_PLocalPersi500weeks.png",
        plot = Fig3, dpi = 300, width = 16, height = 6, units = "in")
 ```
 
-![Time series of weekly high counts of Snail kites in Payne's Prairie wetland from eBird (a) and standardized monitoring surveys (b), with local persistence probability ($\phi$) +/- standard deviation estimated for each dataset after 50,000 population trajectories simulated. (c) Local persistence probability extimated from eBird data plotted against local persistence probability estimated from standardized monitored, with standard deviation. Estimation of $\phi$ from 50,000 trajectories in a timeframe of \~10 years (500 weeks). Solid black line is the line of identity, while dashed black line is linear regression (equation in gray).](results/Figure3_timeseries_PLocalPersi500weeks.png){width=80%}
+![Time series of weekly high counts of Snail kites in Payne's Prairie wetland from eBird (a) and standardized monitoring surveys (b), with local persistence probability ($\phi$) +/- standard deviation estimated for each dataset after 50,000 population trajectories simulated. (c) Local persistence probability extimated from eBird data plotted against local persistence probability estimated from standardized monitored, with standard deviation. Estimation of $\phi$ from 50,000 trajectories in a timeframe of \~10 years (500 weeks). Solid black line is the line of identity, while dashed black line is linear regression (equation in gray).](results/Figure3_timeseries_PLocalPersi500weeks.png){width=100%}
 
 \clearpage
 
@@ -4267,7 +4248,7 @@ sensilab <- c(
   'p5' = "5% dataset (n = 12; 1)"
 )
 
-Figure4 <- ggplot(cor_sen,
+Figure5 <- ggplot(cor_sen,
        aes(x = phi.hatSM, y = phi.hat))+
   geom_abline(slope = 1)+
   facet_wrap(~factor(Percentage,
@@ -4291,24 +4272,24 @@ Figure4 <- ggplot(cor_sen,
   coord_equal(ratio = 1)+
   theme_classic()
 
-Figure4
+Figure5
 
 
 #lets saved it with good proportions
-ggsave("results/Figure4_Sensitivity_correlations.pdf", 
-       plot = Figure4, dpi = 300, width = 9, height = 8, units = "in")
+ggsave("results/Figure5_Sensitivity_correlations.pdf", 
+       plot = Figure5, dpi = 300, width = 9, height = 8, units = "in")
 
-ggsave("results/Figure4_Sensitivity_correlations.png", 
-       plot = Figure4, dpi = 300, width = 9, height = 8, units = "in")
+ggsave("results/Figure5_Sensitivity_correlations.png", 
+       plot = Figure5, dpi = 300, width = 9, height = 8, units = "in")
 ```
 
-![Relationship of estimated local persistence probability ($\hat{\phi}$) from eBird (ordinate) and standardized monitoring (abscissa) under data reduction as sensitivity analysis. Sequence of panels represent reduction from the complete eBird dataset (relationship of trends in Figure 3b) to different percentages of randomly subsampled data, from top-left to bottom-right. Local persistence probability was estimated using a ~five-year timeframe of population simulations from iteratively fitted population models. A linear model is fitted and deployed with a blue line, including confidence intervals in gray ribbon ($\rho$ below the equation shows Pearson correlation coefficient); the diagonal line is the line of identity (relation 1:1). See extended figure in Supporting Information-Section 7 for specific trends of $\hat{\phi}$ across the time series. Although model accuracy varies with decreasing data and some underestimation of $\hat{\phi}$ from eBird data suggest less conservative estimation, the relationship with standardized monitoring data might stands with as little as 25% of the observed eBird weekly high counts](results/Figure4_Sensitivity_correlations.png){width=80%}
+![*Figure 5 in Main text*. Relationship of estimated local persistence probability ($\hat{\phi}$) from eBird (ordinate) and standardized monitoring (abscissa) under data reduction as sensitivity analysis.](results/Figure5_Sensitivity_correlations.png){width=80%}
 
 And we can see the differences in a figure
 
-```{r Figure 4}
+```{r Figure 5 extended}
 
-Fig4Ext <- ggplot(phiSD_df_sensitivity, aes(x = observation.date, 
+Fig5Ext <- ggplot(phiSD_df_sensitivity, aes(x = observation.date, 
                                  y = phi.hat))+
   geom_ribbon(aes(ymin = phi.hat-SD.phi, 
                       ymax = phi.hat+SD.phi), 
@@ -4343,18 +4324,18 @@ Fig4Ext <- ggplot(phiSD_df_sensitivity, aes(x = observation.date,
   theme_classic() +
   theme(legend.position = "none")
 
-Fig4Ext
+Fig5Ext
 
 #lets saved it with good proportions
-ggsave("results/Figure4ext_sensitivity_datareduction.pdf", 
-       plot = Fig4Ext, dpi = 300, width = 10, height = 7, units = "in")
+ggsave("results/Figure5ext_sensitivity_datareduction.pdf", 
+       plot = Fig5Ext, dpi = 300, width = 10, height = 7, units = "in")
 
-ggsave("results/Figure4ext_sensitivity_datareduction.png", 
-       plot = Fig4Ext, dpi = 300, width = 10, height = 7, units = "in")
+ggsave("results/Figure5ext_sensitivity_datareduction.png", 
+       plot = Fig5Ext, dpi = 300, width = 10, height = 7, units = "in")
 
 ```
 
-![Data reduction as sensitivity analysis. Estimation of local persistence probability ($\phi$) for standardized monitoring (orange) is replicated in each panel. Sequence of panels represent reduction from the complete dataset (same as Figure 3b *in the Main text*) to different percentages of randomly subsampled data, from top-left to bottom-right. Point shapes represent fitted model, the EGSS (circle) or OUSS (triangle). *Extended figure for Figure 4 in the Main text*.](results/Figure4ext_sensitivity_datareduction.png){width=100%}
+![*Extended figure for Figure 5 in the Main text*. Data reduction as sensitivity analysis. Estimation of local persistence probability ($\phi$) for standardized monitoring (orange) is replicated in each panel. Sequence of panels represent reduction from the complete dataset (same as Figure 4b *in the Main text*) to different percentages of randomly subsampled data, from top-left to bottom-right. Point shapes represent fitted model, the EGSS (circle) or OUSS (triangle). ](results/Figure5ext_sensitivity_datareduction.png){width=100%}
 
 \clearpage
 
