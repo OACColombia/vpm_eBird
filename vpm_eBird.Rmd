@@ -1076,7 +1076,7 @@ wrapped_gridSnailKite = st_wrap_dateline(gridSnailKite,
                                          quiet = TRUE)
 
 #save the wrapped grid
-saveRDS(wrapped_gridSnailKite, "wrapped_gridSnailKite.rds")
+saveRDS(wrapped_gridSnailKite, "data_tmp/wrapped_gridSnailKite.rds")
 ```
 
 ![Head of wrapped grid for Snail kites in Florida](data_raw/head_cells_SK_wrapped.png){width=50%}
@@ -4969,7 +4969,7 @@ Where are these localities in Florida?
 world1 <- sf::st_as_sf(maps::map(database = 'world', plot = FALSE, fill = TRUE))
 world1
 
-wrapped_gridSnailKite <- readRDS("wrapped_gridSnailKite.rds") |>
+wrapped_gridSnailKite <- readRDS("data_tmp/wrapped_gridSnailKite.rds") |>
   left_join(sk.others)
 
 ggplot() +
