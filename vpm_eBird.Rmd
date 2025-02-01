@@ -1,7 +1,7 @@
 ---
 title: "**Supporting Information**"
-subtitle: "Monitoring population risk with community science data"
-author: "Authors...(removed for peer review in Methods in Ecology and Evolution)"
+subtitle: "Monitoring population extinction risk with community science data"
+author: "Authors...(removed for peer review in Journal of Applied Ecology)"
 date: "`r format(Sys.time(), '%d %B %Y')`"
 output:
   pdf_document:
@@ -21,12 +21,11 @@ editor_options:
 
 # Read me (begin here)
 
-This file is the code used for a paper \textit{submitted} to \textbf{\textit{Methods
-in Ecology and Evolution}}. We hope this code serve as a practical tutorial and  applied for different users in an intuitive way. Our aim is to describe and test a framework to estimate risk-based population viability - local persistence probability ($\phi$) from time series of community science data ([eBird](https://ebird.org/home)). Using a case study, we assessed the accuracy of local persistence probability estimates by comparing estimates using eBird data with those from standardized monitoring. Then, we conducted a sensitivity analysis to assess how the method behaves to limitation in the number of eBird observations available. We used the risk-based viable population monitoring (VPM) framework ([Staples *et al.*, 2005](https://conbio.onlinelibrary.wiley.com/doi/full/10.1111/j.1523-1739.2005.00283.x)), fitting continuous state-space population models under density-independent dynamics ([Humbert *et al.*, 2009](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x)). 
+This file is the code used for a paper \textit{submitted} to \textbf{\textit{Journal of Applied Ecology}}. We hope this code serve as a practical tutorial and is applied for different users in an intuitive way. Our aim is to describe and test a quantitative approach that fits continuous state-space models iteratively to a time series of community science data ([eBird](https://ebird.org/home)), with teh ultimate goal of estimating local persistence probability through time. We evaluated model accuracy by comparing estimates and trends from eBird with those from the endangered Everglade’s snail kite long-term standardized monitoring project. We also perform a sensitivity analysis to assess how robust the persistence estimates are to a reduction in the number of eBird observations available. We used the risk-based viable population monitoring (VPM) framework ([Staples *et al.*, 2005](https://conbio.onlinelibrary.wiley.com/doi/full/10.1111/j.1523-1739.2005.00283.x)), fitting continuous state-space population models under density-independent dynamics ([Humbert *et al.*, 2009](https://nsojournals.onlinelibrary.wiley.com/doi/pdfdirect/10.1111/j.1600-0706.2009.17839.x)). 
 
-This population dynamic can be (and we provide the code for) extended to density-dependent dynamics ([Dennis & Ponciano, 2014](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/13-1486.1)). We focused on the recent (since 2018) expanded population of Everglade snail kite ([*Rostrhamus sociabilis plumbeus*](https://birdsoftheworld.org/bow/species/snakit/cur/introduction)) in north-central Florida, US, a species with standardized monitoring efforts that provide benchmark population trends for comparison (see Section 2.1 in the main text).  
+This population dynamic can be (and we provide the code for) extended to density-dependent dynamics ([Dennis & Ponciano, 2014](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/13-1486.1)). We focused on the recent (since 2018) expanded population of Everglade's snail kite ([*Rostrhamus sociabilis plumbeus*](https://birdsoftheworld.org/bow/species/snakit/cur/introduction)) in north-central Florida, US, a species with standardized monitoring efforts that provide benchmark population trends for comparison (see Section 2.1 in the main text).  
 
-Two continuous versions of the discrete-time equal sampling Gompertz State-Space model can be fitted with our approach:
+Two continuous versions of the discrete-time equal sampling Gompertz State-Space model can be fitted with our quantitative approach:
 
 1.  The density-dependent Ornstein-Uhlenbeck State-Space model (OUSS)
 2.  The density-independent Exponential Growth State Space model (EGSS)
@@ -46,7 +45,7 @@ and [Dennis & Ponciano, (2014)](https://esajournals.onlinelibrary.wiley.com/doi/
 Thus, users should first run all the packages and functions in the next
 section. Then, access eBird data and organize it as time series in spatiotemporal subsamples and estimate local persistence - monitoring population risk with community science data.
 
-![*Figure 1 in Main text* Viability population monitoring (VPM) framework for estimating local persistence probabilities over time (Staples et al., 2005). Observed counts (blue points) inform a population model fitted from $t_{1}$ to $t_{i}$ (black lines). Using estimated parameters (e.g., growth rate, environmental or observation noise), stochastic trajectories are simulated beyond vertical dotted line within moving windows of $S$ years (gray ribbons, lines, and shapes). These simulations estimate the probability of counts falling below a quasi-extinction threshold (dashed line, red crosses); 1 minus this probability is the local persistence probability. The VPM iteratively updates these estimates with new data. Panels (a-l) show monitoring progress: abundance (left) and persistence probability (right), with simulation windows increasing in tone (dark to light) and time advancing downward. Probabilities are calculated for window lengths $S_{3}$ (3 years, circles), $S_{5}$ (5 years, squares), and $S_{10}$ (10 years, diamonds) across monitoring iterations $i=1$ (a-b) to $i=6$ (k-l). Simulated trajectories change between iterations, reflecting changes in persistence estimates before abundance drops below the threshold (data inspired from California condor in Staples et al. 2005). Extending simulations to $m=50,000$ trajectories enhances robustness. This approach models population risk as a stochastic process and can be adapted for community science data, such as eBird, if similar persistence estimates align with benchmark monitoring data.](results/Figure1.png){width=60%}
+![*Figure 1 in Main text* The risk-based viable population monitoring (VPM) framework for estimating local persistence probabilities over time. Observed counts (blue points) inform a population model fitted from $t_{1}$ to $t_{i}$ (black lines). Using estimated parameters (e.g., growth rate, environmental or observation noise), stochastic trajectories are simulated beyond vertical dotted line ($t_{i}$) within moving windows of S years (gray ribbons, lines, and shapes). These simulations estimate the probability of counts falling below a quasi-extinction threshold (dashed line, red crosses); the complement is the local persistence probability. The VPM iteratively updates these estimates with new data. Panels (a-f) show monitoring progress: abundance from standardized monitoring (SM; left), from community science data (CS; center) and persistence probability (right), with simulation windows increasing in tone (dark to light) and time advancing downward. Probabilities are calculated for window lengths $S_{3}$ (3 years, circles), $S_{5}$ (5 years, squares), and $S_{10}$ (10 years, diamonds) across each time that persistence is estimated, $i=1$ (a) to $i=6$ (f). Simulated trajectories change between iterations, reflecting changes in persistence estimates before abundance drops below the threshold. Lower count estimation in CS resembles the dynamic of the population, resulting in similar persistence estimate (filled vs hollowed points). Extending simulations enhances the estimate robustness.](results/Figure1.png){width=60%}
 
 \clearpage
 
@@ -3127,7 +3126,7 @@ Figure4a <- ggplot(phi_data_plot,
              aes(color = group, fill = group),
              size = 2, shape = 21) +
   labs(x = "Observation date",
-       y = expression(italic(phi)),
+       y = expression(paste("Persistence (", phi,")")),
        tag = expression(bold("(a)")),
        title = "Simulation window: 150 weeks or ~3 years")  +
   coord_cartesian(ylim = c(0, 1))+
@@ -3227,7 +3226,7 @@ FigOUSS_B <- ggplot(phi_data_plot,
                  color = group),
              size = 2) +
   labs(x = "Observation date",
-       y = expression(italic(phi)),
+       y = expression(paste("Persistence (", phi,")")),
        tag = expression(bold("(b)")),
        title = "Simulation window: 250 weeks or ~5 years")  +
   coord_cartesian(ylim = c(0, 1))+
@@ -3275,7 +3274,7 @@ Figure4b <- ggplot(phi_data_plot,
              aes(color = group, fill = group),
              size = 2, shape = 21) +
   labs(x = "Observation date",
-       y = expression(italic(phi)),
+       y = expression(paste("Persistence (", phi,")")),
        tag = expression(bold("(b)")),
        title = "Simulation window: 250 weeks or ~5 years",
        color = "Dataset",
@@ -3419,7 +3418,7 @@ Figure4c <- ggplot(phi_data_plot,
              aes(color = group, fill = group),
              size = 2, shape = 21) +
   labs(x = "Observation date",
-       y = expression(italic(phi)),
+       y = expression(paste("Persistence (", phi,")")),
        tag = expression(bold("(c)")),
        title = "Simulation window: 500 weeks or ~10 years")  +
   coord_cartesian(ylim = c(0, 1))+
@@ -4652,7 +4651,7 @@ sensilab <- c(
   'p5' = "5% dataset (n = 13; 1)"
 )
 
-Figure5 <- ggplot(cor_sen,
+Fig5Ext_a <- ggplot(cor_sen,
        aes(x = phi.hatSM, y = phi.hat))+
   geom_abline(slope = 1)+
   facet_wrap(~factor(Percentage,
@@ -4677,18 +4676,17 @@ Figure5 <- ggplot(cor_sen,
   theme_bw() +
   theme(strip.background = element_blank())
 
-Figure5
-
+Fig5Ext_a
 
 #lets saved it with good proportions
-ggsave("results/Figure5_Sensitivity_correlations.pdf", 
-       plot = Figure5, dpi = 300, width = 9, height = 8, units = "in")
+ggsave("results/Figure5ext_a_Sensitivity_correlations.pdf", 
+       plot = Fig5Ext_a, dpi = 300, width = 9, height = 8, units = "in")
 
-ggsave("results/Figure5_Sensitivity_correlations.png", 
-       plot = Figure5, dpi = 300, width = 9, height = 8, units = "in")
+ggsave("results/Figure5ext_a_Sensitivity_correlations.png", 
+       plot = Fig5Ext_a, dpi = 300, width = 9, height = 8, units = "in")
 ```
 
-![*Figure 5 in Main text*. Relationship of estimated local persistence probability ($\hat{\phi}$) from eBird (ordinate) and standardized monitoring (abscissa) under data reduction as part of a sensitivity analysis. The sequence of panels represent reduction from the complete eBird dataset (relationship of trends in Figure 4c) to different percentages of randomly subsampled data, from top-left to bottom-right ($n$ in parenthesis indicates the number of weeks from eBird reduced data and overlapping benchmark weeks). Local persistence probability was estimated using a ten-year moving window of population simulations from iteratively fitted population models. A linear model is fitted and deployed with a blue line, including confidence intervals in gray ribbon ($\rho$ below the equation shows Pearson correlation coefficient); the diagonal line is the line of identity (relation 1:1). See below specific trends of $\hat{\phi}$ across the time series. Although model accuracy varies with decreasing data and some overestimation of $\hat{\phi}$ from eBird data suggest less conservative estimation, the relationship with standardized monitoring data might stands with as little as 5% of the observed eBird weekly high counts (about three weeks per year).](results/Figure5_Sensitivity_correlations.png){width=80%}
+![*Extended figure for Figure 5 in Main text*. Relationship of estimated local persistence probability ($\hat{\phi}$) from eBird (ordinate) and standardized monitoring (abscissa) under data reduction as part of a sensitivity analysis. The sequence of panels represent reduction from the complete eBird dataset (relationship of trends in Figure 4c) to different percentages of randomly subsampled data, from top-left to bottom-right ($n$ in parenthesis indicates the number of weeks from eBird reduced data and overlapping benchmark weeks). Local persistence probability was estimated using a ten-year moving window of population simulations from iteratively fitted population models. A linear model is fitted and deployed with a blue line, including confidence intervals in gray ribbon ($\rho$ below the equation shows Pearson correlation coefficient); the diagonal line is the line of identity (relation 1:1). See below specific trends of $\hat{\phi}$ across the time series. Although model accuracy varies with decreasing data and some overestimation of $\hat{\phi}$ from eBird data suggest less conservative estimation, the relationship with standardized monitoring data might stands with as little as 5% of the observed eBird weekly high counts (about three weeks per year).](results/Figure5ext_a_Sensitivity_correlations.png){width=100%}
 
 \FloatBarrier
 
@@ -4698,7 +4696,7 @@ And we can see the differences in a figure
 
 ```{r Figure 5 extended}
 
-Fig5Ext <- ggplot(phiSD_df_sensitivity, 
+Fig5Ext_b <- ggplot(phiSD_df_sensitivity, 
                   aes(x = observation.date,
                       y = phi.hat))+
   geom_ribbon(aes(ymin = phi.hat-SD.phi, 
@@ -4733,18 +4731,18 @@ Fig5Ext <- ggplot(phiSD_df_sensitivity,
   theme(legend.position = "none",
         strip.background = element_blank())
 
-Fig5Ext
+Fig5Ext_b
 
 #lets saved it with good proportions
-ggsave("results/Figure5ext_sensitivity_datareduction.pdf", 
-       plot = Fig5Ext, dpi = 300, width = 10, height = 7, units = "in")
+ggsave("results/Figure5ext_b_sensitivity_datareduction.pdf", 
+       plot = Fig5Ext_b, dpi = 300, width = 10, height = 7, units = "in")
 
-ggsave("results/Figure5ext_sensitivity_datareduction.png", 
-       plot = Fig5Ext, dpi = 300, width = 10, height = 7, units = "in")
+ggsave("results/Figure5ext_b_sensitivity_datareduction.png", 
+       plot = Fig5Ext_b, dpi = 300, width = 10, height = 7, units = "in")
 
 ```
 
-![*Extended figure for Figure 5 in the Main text*. Data reduction as sensitivity analysis. Estimation of local persistence probability ($\phi$) for standardized monitoring (orange) is replicated in each panel. Sequence of panels represent reduction from the complete dataset (same as Figure 4b *in the Main text*) to different percentages of randomly subsampled data, from top-left to bottom-right. Point shapes represent fitted model, the EGSS (circle) or OUSS (triangle). ](results/Figure5ext_sensitivity_datareduction.png){width=100%}
+![*Extended figure for Figure 5 in the Main text*. Data reduction as sensitivity analysis. Estimation of local persistence probability ($\phi$) for standardized monitoring (orange) is replicated in each panel. Sequence of panels represent reduction from the complete dataset (same as Figure 4b *in the Main text*) to different percentages of randomly subsampled data, from top-left to bottom-right. Point shapes represent fitted model, the EGSS (circle) or OUSS (triangle). ](results/Figure5ext_b_sensitivity_datareduction.png){width=100%}
 
 \FloatBarrier
 
@@ -4846,6 +4844,126 @@ datesPP |>
 ```
 
 Again, more negative values indicate a higher estimate of $\phi$ for a week $i$ using eBird data when compared with standardized monitoring data across different observation reduced data sets.
+
+\FloatBarrier
+
+## Figure 5
+
+Data reduction in time series and correlation for some percentages: Complete (100%), 90%, 70%, 50%, 30%, and 10%.
+
+```{r Figure 5 with time series and correlations}
+
+# Load necessary libraries
+library(ggplot2)
+library(patchwork)
+
+# Define the sensilab object
+sensilab_fig5 <- c(
+  'All' = expression(bold("(a)")~"Complete (n = 258; 32)"),
+  'p90' = expression(bold("(b)")~"90% dataset (n = 233; 31)"),
+  'p70' = expression(bold("(c)")~"70% dataset (n = 180; 18)"),
+  'p50' = expression(bold("(d)")~"50% dataset (n = 129; 12)"),
+  'p30' = expression(bold("(e)")~"30% dataset (n = 80; 5)"),
+  'p10' = expression(bold("(f)")~"10% dataset (n = 26; 3)")
+)
+
+# Filter the data for the required percentages
+cor_sen_filtered <- cor_sen[cor_sen$Percentage %in% c("All", 
+                                                      "p90",
+                                                      "p70",
+                                                      "p50",
+                                                      "p30",
+                                                      "p10"), ]
+
+# we can use a function that creates the time series plots
+time_series_plot <- function(percentage) {
+  ggplot(cor_sen_filtered[cor_sen_filtered$Percentage == percentage, ],
+         aes(x = observation.date, 
+             y = phi.hat)) +
+    geom_ribbon(aes(ymin = phi.hat - SD.phi, 
+                    ymax = phi.hat + SD.phi), 
+                fill = "#91bfdb25") +
+    geom_ribbon(data = phi.SM.500,
+                aes(x = observation.date, 
+                    y = phi.hatSM, 
+                    ymin = phi.hatSM - SD.phiSM, 
+                    ymax = phi.hatSM + SD.phiSM),
+                fill = "#fc8d5925") +
+    geom_line(color = "#91bfdb95") +
+    geom_point(size = 2, color = "#91bfdb95") +
+    geom_line(data = phi.SM.500,
+              aes(x = observation.date, 
+                  y = phi.hatSM), 
+              color = "#fc8d5995") +
+    geom_point(data = phi.SM.500,
+               aes(x = observation.date, 
+                   y = phi.hatSM), 
+               size = 2, 
+               color = "#fc8d5995") +
+    scale_x_date(limits = c(datesPP$observation.date[99],
+                            max(datesPP$observation.date)),
+                 breaks = seq(datesPP$observation.date[99],
+                              max(datesPP$observation.date),
+                              by = "12 months"), 
+                 date_labels="%b\n%Y")+
+
+    labs(x = "Observation date", 
+         y = expression(paste("Persistence (", phi,")"))) +
+    theme_bw() +
+    theme(legend.position = "none", 
+          strip.background = element_blank()) +
+    ggtitle(sensilab_fig5[percentage])
+}
+
+# and another funtion that creates correlation plots
+correlation_plot <- function(percentage) {
+  ggplot(cor_sen_filtered[cor_sen_filtered$Percentage == percentage, ],
+         aes(x = phi.hatSM, 
+             y = phi.hat)) +
+    geom_abline(slope = 1) +
+    geom_point() +
+    geom_smooth(method = "lm", 
+                fullrange = TRUE) +
+    stat_regline_equation(label.x = 0.35, 
+                          label.y = 0.2, 
+                          size = 2.5) +
+    stat_cor(method = "pearson",
+             aes(label = paste("rho == ", ..r.., "*','~~p == ", ..p..)),
+             label.x = 0.25, 
+             label.y = 0.1, 
+             size = 2.5, 
+             parse = TRUE) +
+    labs(x = expression(paste("Persistence (", phi[SM],")")), 
+         y = expression(paste("Persistence (", phi[eBird],")"))) +
+    scale_x_continuous(limits = c(0, 1)) +
+    scale_y_continuous(limits = c(0, 1)) +
+    coord_equal(ratio = 1) +
+    theme_bw() +
+    theme(strip.background = element_blank(),
+          plot.margin = unit(c(0.25, 0.25, 0.25, 0.25), "cm"),
+          axis.title.x = element_text(margin = margin(t = 10)))
+}
+
+# Combine plots using patchwork
+Figure5 <- (
+  (time_series_plot("All") | correlation_plot("All")) /
+  (time_series_plot("p90") | correlation_plot("p90")) /
+  (time_series_plot("p70") | correlation_plot("p70")) /
+  (time_series_plot("p50") | correlation_plot("p50")) /
+  (time_series_plot("p30") | correlation_plot("p30")) /
+  (time_series_plot("p10") | correlation_plot("p10"))
+)
+
+#lets saved it with good proportions
+ggsave("results/Figure5_sensitivity_datareduction.pdf", 
+       plot = Figure5, dpi = 300, width = 6.5, height = 15, units = "in")
+
+ggsave("results/Figure5_sensitivity_datareduction.png", 
+       plot = Figure5, dpi = 300, width = 6.5, height = 15, units = "in")
+
+```
+
+![*Figure 5 in the Main text*. Data reduction as sensitivity analysis. Estimation of local persistence probability ($\hat{\phi}$) from standardized monitoring data (orange; $\hat{\phi}_{SM}$) is replicated in each comparison with estimation of local persistence probability from eBird (blue; $\hat{\phi}_{eBird}$) under data reduction. The sequence of panels represent reduction from the complete eBird dataset (same as Figure 4c) to different percentages of randomly sampled data (b-f; see extended figures in SI for the entire data reduction). The n in parenthesis indicates the number of weeks from eBird reduced data and overlapping benchmark weeks. While the left column shows temporal trend of $\hat{\phi}$, the right column shows the relationship of $\hat{\phi}_{eBird}$ (ordinate) and $\hat{\phi}_{SM}$ (abscissa). Local persistence probability was estimated using a ten-year moving window of population simulations from iteratively fitted population models. A linear model is fitted and deployed with a blue line in the right column, including confidence intervals in gray ribbon (ρ below the equation shows Pearson correlation coefficient); the diagonal line is the line of identity (1:1). Although model accuracy varies with decreasing data and some overestimation of $\hat{\phi}_{eBird}$ compared to $\hat{\phi}_{SM}$ suggests less conservative estimation, the trends are still similar even with as little as 5% observed eBird weekly high counts (about three weeks per year). ](results/Figure5_sensitivity_datareduction.png){width=60%}
 
 \clearpage
 

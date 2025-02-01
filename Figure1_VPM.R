@@ -1,6 +1,7 @@
 #Figure 1
 library(tidyverse)
 library(gridExtra)
+library(ggpubr)
 
 #Data ####
 
@@ -49,13 +50,13 @@ P.quasi.ext.10 <- c(rep(NA,4), #t1:4
                     rep(1,3)) #t14:16
 
 #Predicted
-Predicted.5.3 <- c(55,65,70)
-Predicted.5.5 <- c(54,56,55,58,60)
-Predicted.5.10 <- c(53,55,60,54,56,57,55,60,62,65)
+Predicted.5.3 <- c(60,65,70)
+Predicted.5.5 <- c(55,56,55,58,60)
+Predicted.5.10 <- c(50,45,50,45,48,53,55,60,62,65)
 
-Predicted.6.3 <- c(17,14,25)
-Predicted.6.5 <- c(21,19,18,17,14)
-Predicted.6.10 <- c(29,25,20,19,24,17,32,18,38,35)
+Predicted.6.3 <- c(14,15,25)
+Predicted.6.5 <- c(21,19,16,14,18)
+Predicted.6.10 <- c(29,25,21,19,24,16,32,15,38,35)
 
 Predicted.7.3 <- c(30,14,35)
 Predicted.7.5 <- c(38,25,18,29,34)
@@ -65,13 +66,13 @@ Predicted.8.3 <- c(42,25,17)
 Predicted.8.5 <- c(36,38,35,30,16)
 Predicted.8.10 <- c(39,41,35,33,34,29,30,25,18,21)
 
-Predicted.9.3 <- c(17,6,7)
-Predicted.9.5 <- c(14,11,20,18,12)
-Predicted.9.10 <- c(11,21,12,14,20,14,24,22,11,18)
+Predicted.9.3 <- c(8,6,7)
+Predicted.9.5 <- c(14,11,20,15,12)
+Predicted.9.10 <- c(11,21,12,11,21,13,24,22,11,15)
 
 Predicted.10.3 <- c(12,11,10)
-Predicted.10.5 <- c(19,22,17,14,11)
-Predicted.10.10 <- c(25,26,24,19,20,18,21,17,20,18)
+Predicted.10.5 <- c(19,22,13,14,11)
+Predicted.10.10 <- c(25,26,24,19,20,11,21,14,20,13)
 
 Predicted.11.3 <- c(19,17,18)
 Predicted.11.5 <- c(21,22,18,20,17)
@@ -101,31 +102,30 @@ df_fig <- data_frame(time = c(1:16),
                      `S_{10 years}` = 1-P.quasi.ext.10)
 
 #Figures
-#Figure 1ab ####
-Fig1a <- ggplot()+
-  geom_point(data = df_fig |>
-               filter(time %in% c(1:5)),
-             aes(x = time, y = Observed),
-             color = "blue") +
+#Figure 1a ####
+Fig1a.l <- ggplot()+
   geom_rect(data = df_fig,
-            xmin = 6, xmax = 15,
+            xmin = 5, xmax = 15,
             ymin = -Inf, ymax = Inf,
             fill = "#f9f9f9",
             alpha = 0.5)+
   geom_rect(data = df_fig,
-            xmin = 6, xmax = 10,
+            xmin = 5, xmax = 10,
             ymin = -Inf, ymax = Inf,
             fill = "#ececec",
             alpha = 0.5)+
   geom_rect(data = df_fig,
-            xmin = 6, xmax = 8,
+            xmin = 5, xmax = 8,
             ymin = -Inf, ymax = Inf,
             fill = "#dfdfdf",
             alpha = 0.5)+
-  geom_smooth(data = df_fig |>
-                filter(time %in% c(1:5)),
-              aes(x = time, y = Observed),
-              method = "lm", se = F, color = "black")+
+  geom_point(data = df_fig |>
+               filter(time %in% c(1:5)),
+             aes(x = time, y = Observed),
+             color = "blue", size = 2) +
+  geom_segment(aes(x = 1, xend = 5,
+                   y = 40, yend = 55),
+               color = "black", size = 1)+
   geom_hline(yintercept = N.critical,
              linetype = "dashed")+
   geom_vline(xintercept = 5,
@@ -136,28 +136,29 @@ Fig1a <- ggplot()+
   geom_point(aes(x = c(6:8),
                  y = Predicted.5.3),
              color = "#747474",
-             shape = 21)+
+             shape = 20, size = 2)+
   geom_line(aes(x = c(6:10),
                 y = Predicted.5.5),
             color = "#747474")+
   geom_point(aes(x = c(6:10),
                  y = Predicted.5.5),
              color = "#747474",
-             shape = 22)+
+             shape = 15, size = 2)+
   geom_line(aes(x = c(6:15),
                 y = Predicted.5.10),
             color = "#747474")+
   geom_point(aes(x = c(6:15),
                  y = Predicted.5.10),
              color = "#747474",
-             shape = 23)+
+             shape = 18, size = 2)+
   scale_x_continuous(limits = c(1,20),
                      minor_breaks = c(1:20),
                      breaks = c(1:5,6,8,10,15),
                      expand = c(0.01,0))+
-  scale_y_continuous(limits = c(5,70),
-                     minor_breaks = c(5:70),
-                     breaks = seq(10,70,20))+
+  scale_y_continuous(limits = c(1,72),
+                     minor_breaks = c(1:72),
+                     breaks = seq(10,70,20),
+                     expand = c(0.01,0))+
   labs(x = " ",
        y = " ",
        tag = expression(bold("(a)")),
@@ -165,30 +166,101 @@ Fig1a <- ggplot()+
   guides(x = guide_axis(minor.ticks = T),
          y = guide_axis(minor.ticks = T))+
   theme_classic()
-Fig1a
+Fig1a.l
 
-Fig1b <- df_fig |>
+Fig1a.c <- ggplot()+
+  geom_rect(data = df_fig,
+            xmin = 5, xmax = 15,
+            ymin = -Inf, ymax = Inf,
+            fill = "#f9f9f9",
+            alpha = 0.5)+
+  geom_rect(data = df_fig,
+            xmin = 5, xmax = 11,
+            ymin = -Inf, ymax = Inf,
+            fill = "#ececec",
+            alpha = 0.5)+
+  geom_rect(data = df_fig,
+            xmin = 5, xmax = 8,
+            ymin = -Inf, ymax = Inf,
+            fill = "#dfdfdf",
+            alpha = 0.5)+
+  geom_point(data = df_fig |>
+               filter(time %in% c(1:5)),
+             aes(x = time, y = Observed-14),
+             color = "blue",
+             shape = 21, size = 2.5) +
+  geom_segment(aes(x = 1, xend = 6,
+                   y = 30, yend = 45),
+               color = "black", size = 1)+
+  geom_hline(yintercept = N.critical-14,
+             linetype = "dashed")+
+  geom_vline(xintercept = 5,
+             linetype = "dotted")+
+  geom_line(aes(x = c(6:8),
+                y = Predicted.5.3-14),
+            color = "#747474")+
+  geom_point(aes(x = c(6:8),
+                 y = Predicted.5.3-14),
+             color = "#747474",
+             shape = 21, size = 2.5)+
+  geom_line(aes(x = c(6:10),
+                y = Predicted.5.5-14),
+            color = "#747474")+
+  geom_point(aes(x = c(6:10),
+                 y = Predicted.5.5-14),
+             color = "#747474",
+             shape = 22, size = 2.5)+
+  geom_line(aes(x = c(6:15),
+                y = Predicted.5.10-14),
+            color = "#747474")+
+  geom_point(aes(x = c(6:15),
+                 y = Predicted.5.10-14),
+             color = "#747474",
+             shape = 23, size = 2.5)+
+  scale_x_continuous(limits = c(1,20),
+                     minor_breaks = c(1:20),
+                     breaks = c(1:5,6,8,10,15),
+                     expand = c(0.01,0))+
+  scale_y_continuous(limits = c(1,72),
+                     minor_breaks = c(1:72),
+                     breaks = seq(10,70,20),
+                     expand = c(0.01,0))+
+  labs(x = " ",
+       y = " ",
+       tag = expression(bold("(a)")),
+       title = expression(italic("i")*" = 1; "*italic("t")*" = 5")) +
+  guides(x = guide_axis(minor.ticks = T),
+         y = guide_axis(minor.ticks = T))+
+  theme_classic()
+Fig1a.c
+
+Fig1a.r <- df_fig |>
   pivot_longer(!c(time, Observed),
                names_to = "SimulatedWindow",
                values_to = "Persistence") |>
   filter(time %in% c(1:5)) |>
   ggplot(aes(x = time,
-             y = Persistence,
-             shape = factor(SimulatedWindow,
-                            levels = c("S_{3 years}",
-                                   "S_{5 years}",
-                                   "S_{10 years}")))) +
+             y = Persistence)) +
   geom_line(color = "#747474") +
-  geom_point(color = "#747474") +
+  geom_point(aes(shape = factor(SimulatedWindow,
+                                levels = c("S_{3 years}",
+                                           "S_{5 years}",
+                                           "S_{10 years}"))),
+             color = "#747474", size = 3) +
+  geom_point(aes(shape = factor(SimulatedWindow,
+                                levels = c("S_{3 years}",
+                                           "S_{5 years}",
+                                           "S_{10 years}"))),
+             color = "#747474", fill = "#747474", size = 1) +
   scale_x_continuous(limits = c(5,10),
                      minor_breaks = c(5:10),
                      breaks = c(5:5),
                      expand = c(0.02,0))+
   scale_y_continuous(limits = c(0,1))+
-  scale_shape_manual(values = c(21,22,23))+
+  scale_shape_manual(values = c(21,22,23, 20,15,18))+
   labs(x = " ",
        y = " ",
-       tag = expression(bold("(b)")),
+       tag = expression(bold("(a)")),
        title = expression(italic("i")*" = 1; "*italic("t")*" = 5"),
        shape = "Simulated window")+
   theme_classic() +
@@ -196,30 +268,30 @@ Fig1b <- df_fig |>
          y = guide_axis(minor.ticks = T))+
   theme(legend.position = "none")
 
-Fig1b
+Fig1a.r
 
-#Figure 1cd ####
+#Figure 1b ####
 #i = 6
-Fig1c <- ggplot()+
-  geom_point(data = df_fig |>
-               filter(time %in% c(1:6)),
-             aes(x = time, y = Observed),
-             color = "blue") +
+Fig1b.l <- ggplot()+
   geom_rect(data = df_fig,
-            xmin = 7, xmax = 16,
+            xmin = 6, xmax = 16,
             ymin = -Inf, ymax = Inf,
             fill = "#f9f9f9",
             alpha = 0.5)+
   geom_rect(data = df_fig,
-            xmin = 7, xmax = 11,
+            xmin = 6, xmax = 11,
             ymin = -Inf, ymax = Inf,
             fill = "#ececec",
             alpha = 0.5)+
   geom_rect(data = df_fig,
-            xmin = 7, xmax = 9,
+            xmin = 6, xmax = 9,
             ymin = -Inf, ymax = Inf,
             fill = "#dfdfdf",
             alpha = 0.5)+
+  geom_point(data = df_fig |>
+               filter(time %in% c(1:6)),
+             aes(x = time, y = Observed),
+             color = "blue", size = 2) +
   geom_segment(aes(x = 1, xend = 6,
                    y = 40, yend = 51),
                color = "black", size = 1)+
@@ -233,7 +305,7 @@ Fig1c <- ggplot()+
    geom_point(aes(x = c(7:9),
                  y = Predicted.6.3),
              color = "#747474",
-             shape = 21)+
+             shape = 20, size = 2)+
   geom_point(aes(x = c(7:8),
                  y = Predicted.6.3[Predicted.6.3<N.critical]),
              color = "red",
@@ -244,7 +316,7 @@ Fig1c <- ggplot()+
   geom_point(aes(x = c(7:11),
                  y = Predicted.6.5),
              color = "#747474",
-             shape = 22)+
+             shape = 15, size = 2)+
   geom_point(aes(x = c(9:11),
                  y = Predicted.6.5[Predicted.6.5<N.critical]),
              color = "red",
@@ -255,7 +327,7 @@ Fig1c <- ggplot()+
   geom_point(aes(x = c(7:16),
                  y = Predicted.6.10),
              color = "#747474",
-             shape = 23)+
+             shape = 18, size = 2)+
   geom_point(aes(x = c(6+6,6+8),
                  y = Predicted.6.10[Predicted.6.10<N.critical]),
              color = "red",
@@ -264,19 +336,99 @@ Fig1c <- ggplot()+
                      minor_breaks = c(1:20),
                      breaks = c(1:6,7,9,11,16),
                      expand = c(0.01,0))+
-  scale_y_continuous(limits = c(5,70),
-                     minor_breaks = c(5:70),
-                     breaks = seq(10,70,20))+
+  scale_y_continuous(limits = c(1,72),
+                     minor_breaks = c(1:70),
+                     breaks = seq(10,70,20),
+                     expand = c(0.01,0))+
   labs(x = " ",
        y = " ",
-       tag = expression(bold("(c)")),
+       tag = expression(bold("(b)")),
        title = expression(italic("i")*" = 2; "*italic("t")*" = 6"))+
   guides(x = guide_axis(minor.ticks = T),
          y = guide_axis(minor.ticks = T))+
   theme_classic()
-Fig1c
+Fig1b.l
 
-Fig1d <- df_fig |>
+Fig1b.c <- ggplot()+
+  geom_rect(data = df_fig,
+            xmin = 6, xmax = 16,
+            ymin = -Inf, ymax = Inf,
+            fill = "#f9f9f9",
+            alpha = 0.5)+
+  geom_rect(data = df_fig,
+            xmin = 6, xmax = 11,
+            ymin = -Inf, ymax = Inf,
+            fill = "#ececec",
+            alpha = 0.5)+
+  geom_rect(data = df_fig,
+            xmin = 6, xmax = 9,
+            ymin = -Inf, ymax = Inf,
+            fill = "#dfdfdf",
+            alpha = 0.5)+
+  geom_point(data = df_fig |>
+               filter(time %in% c(1:6)),
+             aes(x = time, y = Observed-14),
+             color = "blue",
+             shape = 21, size = 2.5) +
+  geom_segment(aes(x = 1, xend = 6,
+                   y = 30, yend = 41),
+               color = "black", size = 1)+
+  geom_hline(yintercept = N.critical-14,
+             linetype = "dashed")+
+  geom_vline(xintercept = 6,
+             linetype = "dotted")+
+  geom_line(aes(x = c(7:9),
+                y = Predicted.6.3-13),
+            color = "#747474")+
+  geom_point(aes(x = c(7:9),
+                 y = Predicted.6.3-13),
+             color = "#747474",
+             shape = 21, size = 2.5)+
+  geom_point(aes(x = c(7:8),
+                 y = Predicted.6.3[Predicted.6.3<N.critical]-13),
+             color = "red",
+             shape = 4)+
+  geom_line(aes(x = c(7:11),
+                y = Predicted.6.5-13),
+            color = "#747474")+
+  geom_point(aes(x = c(7:11),
+                 y = Predicted.6.5-13),
+             color = "#747474",
+             shape = 22, size = 2.5)+
+  geom_point(aes(x = c(9:11),
+                 y = Predicted.6.5[Predicted.6.5<N.critical]-13),
+             color = "red",
+             shape = 4)+
+  geom_line(aes(x = c(7:16),
+                y = Predicted.6.10-14),
+            color = "#747474")+
+  geom_point(aes(x = c(7:16),
+                 y = Predicted.6.10-14),
+             color = "#747474",
+             shape = 23, size = 2.5)+
+  geom_point(aes(x = c(6+6,6+8),
+                 y = Predicted.6.10[Predicted.6.10<N.critical]-14),
+             color = "red",
+             shape = 4)+
+  scale_x_continuous(limits = c(1,20),
+                     minor_breaks = c(1:20),
+                     breaks = c(1:6,7,9,11,16),
+                     expand = c(0.01,0))+
+  scale_y_continuous(limits = c(1,72),
+                     minor_breaks = c(1:70),
+                     breaks = seq(10,70,20),
+                     expand = c(0.01,0))+
+  labs(x = " ",
+       y = " ",
+       tag = expression(bold("(b)")),
+       title = expression(italic("i")*" = 2; "*italic("t")*" = 6"))+
+  guides(x = guide_axis(minor.ticks = T),
+         y = guide_axis(minor.ticks = T))+
+  theme_classic()
+Fig1b.c
+
+
+Fig1b.r <- df_fig |>
   pivot_longer(!c(time, Observed),
                names_to = "SimulatedWindow",
                values_to = "Persistence") |>
@@ -288,47 +440,49 @@ Fig1d <- df_fig |>
                                        "S_{5 years}",
                                        "S_{10 years}")))) +
   geom_line(color = "#747474", alpha = 0.75) +
-  geom_point(color = "#747474") +
+  geom_point(color = "#747474", size = 3) +
+  geom_point(color = "#747474", fill = "#747474", size = 1) +
   scale_x_continuous(limits = c(5,10),
                      minor_breaks = c(5:10),
                      breaks = c(5:6),
                      expand = c(0.02,0))+
   scale_y_continuous(limits = c(0,1))+
-  scale_shape_manual(values = c(21,22,23))+
+  scale_shape_manual(values = c(21,22,23, 20,15,18))+
   labs(x = " ",
        y = " ",
-       tag = expression(bold("(d)")),
+       tag = expression(bold("(b)")),
        title = expression(italic("i")*" = 2; "*italic("t")*" = 6"),
        shape = "Simulated window")+
   theme_classic() +
   guides(x = guide_axis(minor.ticks = T),
          y = guide_axis(minor.ticks = T))+
   theme(legend.position = "none")
-Fig1d
+Fig1b.r
 
 
-#Figure 1ef ####
+#Figure 1c ####
 #i = 7
-Fig1e <- ggplot()+
-  geom_point(data = df_fig |>
-               filter(time %in% c(1:7)),
-             aes(x = time, y = Observed),
-             color = "blue") +
+Fig1c.l <- ggplot()+
   geom_rect(data = df_fig,
-            xmin = 8, xmax = 17,
+            xmin = 7, xmax = 17,
             ymin = -Inf, ymax = Inf,
             fill = "#f9f9f9",
             alpha = 0.5)+
   geom_rect(data = df_fig,
-            xmin = 8, xmax = 12,
+            xmin = 7, xmax = 12,
             ymin = -Inf, ymax = Inf,
             fill = "#ececec",
             alpha = 0.5)+
   geom_rect(data = df_fig,
-            xmin = 8, xmax = 10,
+            xmin = 7, xmax = 10,
             ymin = -Inf, ymax = Inf,
             fill = "#dfdfdf",
             alpha = 0.5)+
+  geom_point(data = df_fig |>
+               filter(time %in% c(1:7)),
+             aes(x = time, y = Observed),
+             color = "blue",
+             size = 2) +
   geom_segment(aes(x = 1, xend = 7,
                    y = 42, yend = 48),
                color = "black", size = 1)+
@@ -342,7 +496,7 @@ Fig1e <- ggplot()+
   geom_point(aes(x = c(8:10),
                  y = Predicted.7.3),
              color = "#747474",
-             shape = 21)+
+             shape = 20, size = 2)+
   geom_point(aes(x = c(9),
                  y = Predicted.7.3[Predicted.7.3<N.critical]),
              color = "red",
@@ -353,7 +507,7 @@ Fig1e <- ggplot()+
   geom_point(aes(x = c(8:12),
                  y = Predicted.7.5),
              color = "#747474",
-             shape = 22)+
+             shape = 15, size = 2)+
   geom_point(aes(x = c(10),
                  y = Predicted.7.5[Predicted.7.5<N.critical]),
              color = "red",
@@ -364,7 +518,7 @@ Fig1e <- ggplot()+
   geom_point(aes(x = c(8:17),
                  y = Predicted.7.10),
              color = "#747474",
-             shape = 23)+
+             shape = 18, size = 2)+
   geom_point(aes(x = c(11),
                  y = Predicted.7.10[Predicted.7.10<N.critical]),
              color = "red",
@@ -373,19 +527,98 @@ Fig1e <- ggplot()+
                      minor_breaks = c(1:20),
                      breaks = c(1:7,8,10,12,17),
                      expand = c(0.01,0))+
-  scale_y_continuous(limits = c(5,70),
-                     minor_breaks = c(5:70),
-                     breaks = seq(10,70,20))+
+  scale_y_continuous(limits = c(1,72),
+                     minor_breaks = c(1:70),
+                     breaks = seq(10,70,20),
+                     expand = c(0.01,0))+
   labs(x = " ",
        y = " ",
-       tag = expression(bold("(e)")),
+       tag = expression(bold("(c)")),
        title = expression(italic("i")*" = 3; "*italic("t")*" = 7"))+
   guides(x = guide_axis(minor.ticks = T),
          y = guide_axis(minor.ticks = T))+
   theme_classic()
-Fig1e
+Fig1c.l
 
-Fig1f <- df_fig |>
+Fig1c.c <- ggplot()+
+  geom_rect(data = df_fig,
+            xmin = 7, xmax = 17,
+            ymin = -Inf, ymax = Inf,
+            fill = "#f9f9f9",
+            alpha = 0.5)+
+  geom_rect(data = df_fig,
+            xmin = 7, xmax = 12,
+            ymin = -Inf, ymax = Inf,
+            fill = "#ececec",
+            alpha = 0.5)+
+  geom_rect(data = df_fig,
+            xmin = 7, xmax = 10,
+            ymin = -Inf, ymax = Inf,
+            fill = "#dfdfdf",
+            alpha = 0.5)+
+  geom_point(data = df_fig |>
+               filter(time %in% c(1:7)),
+             aes(x = time, y = Observed-14),
+             color = "blue",
+             shape = 21, size = 2.5) +
+  geom_segment(aes(x = 1, xend = 7,
+                   y = 32, yend = 38),
+               color = "black", size = 1)+
+  geom_hline(yintercept = N.critical-14,
+             linetype = "dashed")+
+  geom_vline(xintercept = 7,
+             linetype = "dotted")+
+  geom_line(aes(x = c(8:10),
+                y = Predicted.7.3-13),
+            color = "#747474")+
+  geom_point(aes(x = c(8:10),
+                 y = Predicted.7.3-13),
+             color = "#747474",
+             shape = 21, size = 2.5)+
+  geom_point(aes(x = c(9),
+                 y = Predicted.7.3[Predicted.7.3<N.critical]-13),
+             color = "red",
+             shape = 4)+
+  geom_line(aes(x = c(8:12),
+                y = Predicted.7.5-14),
+            color = "#747474")+
+  geom_point(aes(x = c(8:12),
+                 y = Predicted.7.5-14),
+             color = "#747474",
+             shape = 22, size = 2.5)+
+  geom_point(aes(x = c(10),
+                 y = Predicted.7.5[Predicted.7.5<N.critical]-14),
+             color = "red",
+             shape = 4)+
+  geom_line(aes(x = c(8:17),
+                y = Predicted.7.10-14),
+            color = "#747474")+
+  geom_point(aes(x = c(8:17),
+                 y = Predicted.7.10-14),
+             color = "#747474",
+             shape = 23, size = 2.5)+
+  geom_point(aes(x = c(11),
+                 y = Predicted.7.10[Predicted.7.10<N.critical]-14),
+             color = "red",
+             shape = 4)+
+  scale_x_continuous(limits = c(1,20),
+                     minor_breaks = c(1:20),
+                     breaks = c(1:7,8,10,12,17),
+                     expand = c(0.01,0))+
+  scale_y_continuous(limits = c(1,72),
+                     minor_breaks = c(1:70),
+                     breaks = seq(10,70,20),
+                     expand = c(0.01,0))+
+  labs(x = " ",
+       y = " ",
+       tag = expression(bold("(c)")),
+       title = expression(italic("i")*" = 3; "*italic("t")*" = 7"))+
+  guides(x = guide_axis(minor.ticks = T),
+         y = guide_axis(minor.ticks = T))+
+  theme_classic()
+Fig1c.c
+
+Fig1c.r <- df_fig |>
   pivot_longer(!c(time, Observed),
                names_to = "SimulatedWindow",
                values_to = "Persistence") |>
@@ -397,46 +630,48 @@ Fig1f <- df_fig |>
                                        "S_{5 years}",
                                        "S_{10 years}")))) +
   geom_line(color = "#747474", alpha = 0.75) +
-  geom_point(color = "#747474") +
+  geom_point(color = "#747474", size = 3) +
+  geom_point(color = "#747474", fill = "#747474", size = 1) +
   scale_x_continuous(limits = c(5,10),
                      minor_breaks = c(5:10),
                      breaks = c(1:7),
                      expand = c(0.02,0))+
   scale_y_continuous(limits = c(0,1))+
-  scale_shape_manual(values = c(21,22,23))+
+  scale_shape_manual(values = c(21,22,23, 20,15,18))+
   labs(x = " ",
        y = " ",
-       tag = expression(bold("(f)")),
+       tag = expression(bold("(c)")),
        title = expression(italic("i")*" = 3; "*italic("t")*" = 7"),
        shape = "Simulated window")+
   theme_classic() +
   guides(x = guide_axis(minor.ticks = T),
          y = guide_axis(minor.ticks = T))+
   theme(legend.position = "none")
-Fig1f
+Fig1c.r
 
-#Figure 1gh ####
+#Figure 1d ####
 #i = 8
-Fig1g <- ggplot()+
-  geom_point(data = df_fig |>
-               filter(time %in% c(1:8)),
-             aes(x = time, y = Observed),
-             color = "blue") +
+Fig1d.l <- ggplot()+
   geom_rect(data = df_fig,
-            xmin = 9, xmax = 18,
+            xmin = 8, xmax = 18,
             ymin = -Inf, ymax = Inf,
             fill = "#f9f9f9",
             alpha = 0.5)+
   geom_rect(data = df_fig,
-            xmin = 9, xmax = 13,
+            xmin = 8, xmax = 13,
             ymin = -Inf, ymax = Inf,
             fill = "#ececec",
             alpha = 0.5)+
   geom_rect(data = df_fig,
-            xmin = 9, xmax = 11,
+            xmin = 8, xmax = 11,
             ymin = -Inf, ymax = Inf,
             fill = "#dfdfdf",
             alpha = 0.5)+
+  geom_point(data = df_fig |>
+               filter(time %in% c(1:8)),
+             aes(x = time, y = Observed),
+             color = "blue",
+             shape = 20, size = 2) +
   geom_segment(aes(x = 1, xend = 8,
                    y = 43, yend = 44),
                color = "black", size = 1)+
@@ -450,7 +685,7 @@ Fig1g <- ggplot()+
   geom_point(aes(x = c(9:11),
                  y = Predicted.8.3),
              color = "#747474",
-             shape = 21)+
+             shape = 20, size = 2)+
   geom_point(aes(x = c(11),
                  y = Predicted.8.3[Predicted.8.3<N.critical]),
              color = "red",
@@ -461,7 +696,7 @@ Fig1g <- ggplot()+
   geom_point(aes(x = c(9:13),
                  y = Predicted.8.5),
              color = "#747474",
-             shape = 22)+
+             shape = 15, size = 2)+
   geom_point(aes(x = c(13),
                  y = Predicted.8.5[Predicted.8.5<N.critical]),
              color = "red",
@@ -472,7 +707,7 @@ Fig1g <- ggplot()+
   geom_point(aes(x = c(9:18),
                  y = Predicted.8.10),
              color = "#747474",
-             shape = 23)+
+             shape = 18, size = 2)+
   geom_point(aes(x = c(17),
                  y = Predicted.8.10[Predicted.8.10<N.critical]),
              color = "red",
@@ -481,19 +716,98 @@ Fig1g <- ggplot()+
                      minor_breaks = c(1:20),
                      breaks = c(1:8,9,11,13,18),
                      expand = c(0.01,0))+
-  scale_y_continuous(limits = c(5,70),
-                     minor_breaks = c(5:70),
-                     breaks = seq(10,70,20))+
+  scale_y_continuous(limits = c(1,72),
+                     minor_breaks = c(1:70),
+                     breaks = seq(10,70,20),
+                     expand = c(0.01,0))+
   labs(x = " ",
        y = " ",
-       tag = expression(bold("(g)")),
+       tag = expression(bold("(d)")),
        title = expression(italic("i")*" = 4; "*italic("t")*" = 8"))+
   guides(x = guide_axis(minor.ticks = T),
          y = guide_axis(minor.ticks = T))+
   theme_classic()
-Fig1g
+Fig1d.l
 
-Fig1h <- df_fig |>
+Fig1d.c <- ggplot()+
+  geom_rect(data = df_fig,
+            xmin = 8, xmax = 18,
+            ymin = -Inf, ymax = Inf,
+            fill = "#f9f9f9",
+            alpha = 0.5)+
+  geom_rect(data = df_fig,
+            xmin = 8, xmax = 13,
+            ymin = -Inf, ymax = Inf,
+            fill = "#ececec",
+            alpha = 0.5)+
+  geom_rect(data = df_fig,
+            xmin = 8, xmax = 11,
+            ymin = -Inf, ymax = Inf,
+            fill = "#dfdfdf",
+            alpha = 0.5)+
+  geom_point(data = df_fig |>
+               filter(time %in% c(1:8)),
+             aes(x = time, y = Observed-14),
+             color = "blue",
+             shape = 21, size = 2.5) +
+  geom_segment(aes(x = 1, xend = 8,
+                   y = 33, yend = 34),
+               color = "black", size = 1)+
+  geom_hline(yintercept = N.critical-14,
+             linetype = "dashed")+
+  geom_vline(xintercept = 8,
+             linetype = "dotted")+
+  geom_line(aes(x = c(9:11),
+                y = Predicted.8.3-14),
+            color = "#747474")+
+  geom_point(aes(x = c(9:11),
+                 y = Predicted.8.3-14),
+             color = "#747474",
+             shape = 21, size = 2.5)+
+  geom_point(aes(x = c(11),
+                 y = Predicted.8.3[Predicted.8.3<N.critical]-14),
+             color = "red",
+             shape = 4)+
+  geom_line(aes(x = c(9:13),
+                y = Predicted.8.5-14),
+            color = "#747474")+
+  geom_point(aes(x = c(9:13),
+                 y = Predicted.8.5-14),
+             color = "#747474",
+             shape = 22, size = 2.5)+
+  geom_point(aes(x = c(13),
+                 y = Predicted.8.5[Predicted.8.5<N.critical]-14),
+             color = "red",
+             shape = 4)+
+  geom_line(aes(x = c(9:18),
+                y = Predicted.8.10-14),
+            color = "#747474")+
+  geom_point(aes(x = c(9:18),
+                 y = Predicted.8.10-14),
+             color = "#747474",
+             shape = 23, size = 2)+
+  geom_point(aes(x = c(17),
+                 y = Predicted.8.10[Predicted.8.10<N.critical]-14),
+             color = "red",
+             shape = 4)+
+  scale_x_continuous(limits = c(1,20),
+                     minor_breaks = c(1:20),
+                     breaks = c(1:8,9,11,13,18),
+                     expand = c(0.01,0))+
+  scale_y_continuous(limits = c(1,72),
+                     minor_breaks = c(1:70),
+                     breaks = seq(10,70,20),
+                     expand = c(0.01,0))+
+  labs(x = " ",
+       y = " ",
+       tag = expression(bold("(d)")),
+       title = expression(italic("i")*" = 4; "*italic("t")*" = 8"))+
+  guides(x = guide_axis(minor.ticks = T),
+         y = guide_axis(minor.ticks = T))+
+  theme_classic()
+Fig1d.c
+
+Fig1d.r <- df_fig |>
   pivot_longer(!c(time, Observed),
                names_to = "SimulatedWindow",
                values_to = "Persistence") |>
@@ -505,46 +819,48 @@ Fig1h <- df_fig |>
                                        "S_{5 years}",
                                        "S_{10 years}")))) +
   geom_line(color = "#747474", alpha = 0.75) +
-  geom_point(color = "#747474") +
+  geom_point(color = "#747474", size = 3) +
+  geom_point(color = "#747474", fill = "#747474", size = 1) +
   scale_x_continuous(limits = c(5,10),
                      minor_breaks = c(5:10),
                      breaks = c(1:8),
                      expand = c(0.02,0))+
   scale_y_continuous(limits = c(0,1))+
-  scale_shape_manual(values = c(21,22,23))+
+  scale_shape_manual(values = c(21,22,23, 20,15,18))+
   labs(x = " ",
        y = " ",
-       tag = expression(bold("(h)")),
+       tag = expression(bold("(d)")),
        title = expression(italic("i")*" = 4; "*italic("t")*" = 8"),
        shape = "Simulated window")+
   theme_classic() +
   guides(x = guide_axis(minor.ticks = T),
          y = guide_axis(minor.ticks = T))+
   theme(legend.position = "none")
-Fig1h
+Fig1d.r
 
-#Figure 1ij ####
+#Figure 1e ####
 #i = 9
-Fig1i <- ggplot()+
-  geom_point(data = df_fig |>
-               filter(time %in% c(1:9)),
-             aes(x = time, y = Observed),
-             color = "blue") +
+Fig1e.l <- ggplot()+
   geom_rect(data = df_fig,
-            xmin = 10, xmax = 19,
+            xmin = 9, xmax = 19,
             ymin = -Inf, ymax = Inf,
             fill = "#f9f9f9",
             alpha = 0.5)+
   geom_rect(data = df_fig,
-            xmin = 10, xmax = 14,
+            xmin = 9, xmax = 14,
             ymin = -Inf, ymax = Inf,
             fill = "#ececec",
             alpha = 0.5)+
   geom_rect(data = df_fig,
-            xmin = 10, xmax = 12,
+            xmin = 9, xmax = 12,
             ymin = -Inf, ymax = Inf,
             fill = "#dfdfdf",
             alpha = 0.5)+
+  geom_point(data = df_fig |>
+               filter(time %in% c(1:9)),
+             aes(x = time, y = Observed),
+             color = "blue",
+             shape = 20, size = 2) +
   geom_segment(aes(x = 1, xend = 9,
                    y = 50, yend = 30),
                color = "black", size = 1)+
@@ -558,7 +874,7 @@ Fig1i <- ggplot()+
   geom_point(aes(x = c(10:12),
                  y = Predicted.9.3),
              color = "#747474",
-             shape = 21)+
+             shape = 20, size = 2)+
   geom_point(aes(x = c(10:12),
                  y = Predicted.9.3[Predicted.9.3<N.critical]),
              color = "red",
@@ -569,7 +885,7 @@ Fig1i <- ggplot()+
   geom_point(aes(x = c(10:14),
                  y = Predicted.9.5),
              color = "#747474",
-             shape = 22)+
+             shape = 15, size = 2)+
   geom_point(aes(x = c(10,11,13,14),
                  y = Predicted.9.5[Predicted.9.5<N.critical]),
              color = "red",
@@ -580,7 +896,7 @@ Fig1i <- ggplot()+
   geom_point(aes(x = c(10:19),
                  y = Predicted.9.10),
              color = "#747474",
-             shape = 23)+
+             shape = 18, size = 2)+
   geom_point(aes(x = c(10,12,13,15,18,19),
                  y = Predicted.9.10[Predicted.9.10<N.critical]),
              color = "red",
@@ -589,19 +905,98 @@ Fig1i <- ggplot()+
                      minor_breaks = c(1:20),
                      breaks = c(1:9,10,12,14,19),
                      expand = c(0.01,0))+
-  scale_y_continuous(limits = c(5,70),
-                     minor_breaks = c(5:70),
-                     breaks = seq(10,70,20))+
+  scale_y_continuous(limits = c(1,72),
+                     minor_breaks = c(1:70),
+                     breaks = seq(10,70,20),
+                     expand = c(0.01,0))+
   labs(x = " ",
        y = " ",
-       tag = expression(bold("(i)")),
+       tag = expression(bold("(e)")),
        title = expression(italic("i")*" = 5; "*italic("t")*" = 9"))+
   guides(x = guide_axis(minor.ticks = T),
          y = guide_axis(minor.ticks = T))+
   theme_classic()
-Fig1i
+Fig1e.l
 
-Fig1j <- df_fig |>
+Fig1e.c <- ggplot()+
+  geom_rect(data = df_fig,
+            xmin = 9, xmax = 19,
+            ymin = -Inf, ymax = Inf,
+            fill = "#f9f9f9",
+            alpha = 0.5)+
+  geom_rect(data = df_fig,
+            xmin = 9, xmax = 14,
+            ymin = -Inf, ymax = Inf,
+            fill = "#ececec",
+            alpha = 0.5)+
+  geom_rect(data = df_fig,
+            xmin = 9, xmax = 12,
+            ymin = -Inf, ymax = Inf,
+            fill = "#dfdfdf",
+            alpha = 0.5)+
+  geom_point(data = df_fig |>
+               filter(time %in% c(1:9)),
+             aes(x = time, y = Observed-14),
+             color = "blue",
+             shape = 21, size = 2.5) +
+  geom_segment(aes(x = 1, xend = 9,
+                   y = 40, yend = 20),
+               color = "black", size = 1)+
+  geom_hline(yintercept = N.critical-14,
+             linetype = "dashed")+
+  geom_vline(xintercept = 9,
+             linetype = "dotted")+
+  geom_line(aes(x = c(10:12),
+                y = Predicted.9.3-5),
+            color = "#747474")+
+  geom_point(aes(x = c(10:12),
+                 y = Predicted.9.3-5),
+             color = "#747474",
+             shape = 21, size = 2.5)+
+  geom_point(aes(x = c(10:12),
+                 y = Predicted.9.3[Predicted.9.3<N.critical]-5),
+             color = "red",
+             shape = 4)+
+  geom_line(aes(x = c(10:14),
+                y = Predicted.9.5-10),
+            color = "#747474")+
+  geom_point(aes(x = c(10:14),
+                 y = Predicted.9.5-10),
+             color = "#747474",
+             shape = 22, size = 2.5)+
+  geom_point(aes(x = c(10,11,13,14),
+                 y = Predicted.9.5[Predicted.9.5<N.critical]-10),
+             color = "red",
+             shape = 4)+
+  geom_line(aes(x = c(10:19),
+                y = Predicted.9.10-10),
+            color = "#747474")+
+  geom_point(aes(x = c(10:19),
+                 y = Predicted.9.10-10),
+             color = "#747474",
+             shape = 23, size = 2.5)+
+  geom_point(aes(x = c(10,12,13,15,18,19),
+                 y = Predicted.9.10[Predicted.9.10<N.critical]-10),
+             color = "red",
+             shape = 4)+
+  scale_x_continuous(limits = c(1,20),
+                     minor_breaks = c(1:20),
+                     breaks = c(1:9,10,12,14,19),
+                     expand = c(0.01,0))+
+  scale_y_continuous(limits = c(1,72),
+                     minor_breaks = c(1:70),
+                     breaks = seq(10,70,20),
+                     expand = c(0.01,0))+
+  labs(x = " ",
+       y = " ",
+       tag = expression(bold("(e)")),
+       title = expression(italic("i")*" = 5; "*italic("t")*" = 9"))+
+  guides(x = guide_axis(minor.ticks = T),
+         y = guide_axis(minor.ticks = T))+
+  theme_classic()
+Fig1e.c
+
+Fig1e.r <- df_fig |>
   pivot_longer(!c(time, Observed),
                names_to = "SimulatedWindow",
                values_to = "Persistence") |>
@@ -613,46 +1008,48 @@ Fig1j <- df_fig |>
                                        "S_{5 years}",
                                        "S_{10 years}")))) +
   geom_line(color = "#747474", alpha = 0.75) +
-  geom_point(color = "#747474") +
+  geom_point(color = "#747474", size = 3) +
+  geom_point(color = "#747474", fill = "#747474", size = 1) +
   scale_x_continuous(limits = c(5,10),
                      minor_breaks = c(1:10),
                      breaks = c(1:9),
                      expand = c(0.05,0))+
   scale_y_continuous(limits = c(0,1))+
-  scale_shape_manual(values = c(21,22,23))+
+  scale_shape_manual(values = c(21,22,23, 20,15,18))+
   labs(x = " ",
        y = " ",
-       tag = expression(bold("(j)")),
+       tag = expression(bold("(e)")),
        title = expression(italic("i")*" = 5; "*italic("t")*" = 9"),
        shape = "Simulated window")+
   theme_classic() +
   guides(x = guide_axis(minor.ticks = T),
          y = guide_axis(minor.ticks = T))+
   theme(legend.position = "none")
-Fig1j
+Fig1e.r
 
-#Figure 1kl - stop here ####
+#Figure 1f - stop here ####
 #i = 10
-Fig1k <- ggplot()+
-  geom_point(data = df_fig |>
-               filter(time %in% c(1:10)),
-             aes(x = time, y = Observed),
-             color = "blue") +
+Fig1f.l <- ggplot()+
   geom_rect(data = df_fig,
-            xmin = 11, xmax = 20,
+            xmin = 10, xmax = 20,
             ymin = -Inf, ymax = Inf,
             fill = "#f9f9f9",
             alpha = 0.5)+
   geom_rect(data = df_fig,
-            xmin = 11, xmax = 15,
+            xmin = 10, xmax = 15,
             ymin = -Inf, ymax = Inf,
             fill = "#ececec",
             alpha = 0.5)+
   geom_rect(data = df_fig,
-            xmin = 11, xmax = 13,
+            xmin = 10, xmax = 13,
             ymin = -Inf, ymax = Inf,
             fill = "#dfdfdf",
             alpha = 0.5)+
+  geom_point(data = df_fig |>
+               filter(time %in% c(1:10)),
+             aes(x = time, y = Observed),
+             color = "blue",
+             shape = 20, size = 2) +
   geom_segment(aes(x = 1, xend = 10,
                    y = 51, yend = 26),
                color = "black", size = 1)+
@@ -666,7 +1063,7 @@ Fig1k <- ggplot()+
   geom_point(aes(x = c(11:13),
                  y = Predicted.10.3),
              color = "#747474",
-             shape = 21)+
+             shape = 20, size = 2)+
   geom_point(aes(x = c(11:13),
                  y = Predicted.10.3[Predicted.10.3<N.critical]),
              color = "red",
@@ -677,7 +1074,7 @@ Fig1k <- ggplot()+
   geom_point(aes(x = c(11:15),
                  y = Predicted.10.5),
              color = "#747474",
-             shape = 22)+
+             shape = 15, size = 2)+
   geom_point(aes(x = c(13:15),
                  y = Predicted.10.5[Predicted.10.5<N.critical]),
              color = "red",
@@ -688,8 +1085,8 @@ Fig1k <- ggplot()+
   geom_point(aes(x = c(11:20),
                  y = Predicted.10.10),
              color = "#747474",
-             shape = 23)+
-  geom_point(aes(x = c(14,16,20),
+             shape = 18, size = 2)+
+  geom_point(aes(x = c(16,18,20),
                  y = Predicted.10.10[Predicted.10.10<N.critical]),
              color = "red",
              shape = 4)+
@@ -697,19 +1094,98 @@ Fig1k <- ggplot()+
                      minor_breaks = c(1:20),
                      breaks = c(1:10,11,13,15,20),
                      expand = c(0.01,0))+
-  scale_y_continuous(limits = c(5,70),
-                     minor_breaks = c(5:70),
-                     breaks = seq(10,70,20))+
+  scale_y_continuous(limits = c(1,72),
+                     minor_breaks = c(1:70),
+                     breaks = seq(10,70,20),
+                     expand = c(0.01,0))+
   labs(x = "Time (years)",
        y = " ",
-       tag = expression(bold("(k)")),
+       tag = expression(bold("(f)")),
        title = expression(italic("i")*" = 6; "*italic("t")*" = 10"))+
   guides(x = guide_axis(minor.ticks = T),
          y = guide_axis(minor.ticks = T))+
   theme_classic()
-Fig1k
+Fig1f.l
 
-Fig1l <- df_fig |>
+Fig1f.c <- ggplot()+
+  geom_rect(data = df_fig,
+            xmin = 10, xmax = 20,
+            ymin = -Inf, ymax = Inf,
+            fill = "#f9f9f9",
+            alpha = 0.5)+
+  geom_rect(data = df_fig,
+            xmin = 10, xmax = 15,
+            ymin = -Inf, ymax = Inf,
+            fill = "#ececec",
+            alpha = 0.5)+
+  geom_rect(data = df_fig,
+            xmin = 10, xmax = 13,
+            ymin = -Inf, ymax = Inf,
+            fill = "#dfdfdf",
+            alpha = 0.5)+
+  geom_point(data = df_fig |>
+               filter(time %in% c(1:10)),
+             aes(x = time, y = Observed-14),
+             color = "blue",
+             shape = 21, size = 2.5) +
+  geom_segment(aes(x = 1, xend = 10,
+                   y = 41, yend = 16),
+               color = "black", size = 1)+
+  geom_hline(yintercept = N.critical-14,
+             linetype = "dashed")+
+  geom_vline(xintercept = 10,
+             linetype = "dotted")+
+  geom_line(aes(x = c(11:13),
+                y = Predicted.10.3-9),
+            color = "#747474")+
+  geom_point(aes(x = c(11:13),
+                 y = Predicted.10.3-9),
+             color = "#747474",
+             shape = 21, size = 2.5)+
+  geom_point(aes(x = c(11:13),
+                 y = Predicted.10.3[Predicted.10.3<N.critical]-9),
+             color = "red",
+             shape = 4)+
+  geom_line(aes(x = c(11:15),
+                y = Predicted.10.5-10),
+            color = "#747474")+
+  geom_point(aes(x = c(11:15),
+                 y = Predicted.10.5-10),
+             color = "#747474",
+             shape = 22, size = 2.5)+
+  geom_point(aes(x = c(13:15),
+                 y = Predicted.10.5[Predicted.10.5<N.critical]-10),
+             color = "red",
+             shape = 4)+
+  geom_line(aes(x = c(11:20),
+                y = Predicted.10.10-10),
+            color = "#747474")+
+  geom_point(aes(x = c(11:20),
+                 y = Predicted.10.10-10),
+             color = "#747474",
+             shape = 23, size = 2.5)+
+  geom_point(aes(x = c(16,18,20),
+                 y = Predicted.10.10[Predicted.10.10<N.critical]-10),
+             color = "red",
+             shape = 4)+
+  scale_x_continuous(limits = c(1,20),
+                     minor_breaks = c(1:20),
+                     breaks = c(1:10,11,13,15,20),
+                     expand = c(0.01,0))+
+  scale_y_continuous(limits = c(1,72),
+                     minor_breaks = c(1:70),
+                     breaks = seq(10,70,20),
+                     expand = c(0.01,0))+
+  labs(x = "Time (years)",
+       y = " ",
+       tag = expression(bold("(f)")),
+       title = expression(italic("i")*" = 6; "*italic("t")*" = 10"))+
+  guides(x = guide_axis(minor.ticks = T),
+         y = guide_axis(minor.ticks = T))+
+  theme_classic()
+Fig1f.c
+
+Fig1f.r <- df_fig |>
   pivot_longer(!c(time, Observed),
                names_to = "SimulatedWindow",
                values_to = "Persistence") |>
@@ -721,23 +1197,24 @@ Fig1l <- df_fig |>
                                        "S_{5 years}",
                                        "S_{10 years}")))) +
   geom_line(color = "#747474", alpha = 0.75) +
-  geom_point(color = "#747474") +
+  geom_point(color = "#747474", size = 3) +
+  geom_point(color = "#747474", fill = "#747474", size = 1) +
   scale_x_continuous(limits = c(5,10),
                      minor_breaks = c(5:10),
                      breaks = c(1:10),
                      expand = c(0.02,0))+
   scale_y_continuous(limits = c(0,1))+
-  scale_shape_manual(values = c(21,22,23))+
+  scale_shape_manual(values = c(21,22,23, 20,15,18))+
   labs(x = "Time (years)",
        y = " ",
-       tag = expression(bold("(l)")),
+       tag = expression(bold("(f)")),
        title = expression(italic("i")*" = 6; "*italic("t")*" = 10"),
        shape = "Simulated window")+
   theme_classic() +
   guides(x = guide_axis(minor.ticks = T),
          y = guide_axis(minor.ticks = T))+
   theme(legend.position = "none")
-Fig1l
+Fig1f.r
 
 
 #Figure 1mn ####
@@ -1287,167 +1764,21 @@ Fig1v
 #Arrange figure ####
 #and combine in the figure
 
-LabAbundance <- text_grob(label = '\n Abundance', face = "bold")
+LabAbundance1 <- text_grob(label = '\n Abundance - SM', face = "bold")
+LabAbundance2 <- text_grob(label = '\n Abundance - CS', face = "bold")
 LabPersistence <- text_grob(label = paste("\n ","Persistence"),
                             face = "bold")
 
-Fig1 <- grid.arrange(Fig1a, Fig1b,
-                     Fig1c, Fig1d,
-                     Fig1e, Fig1f,
-                     Fig1g, Fig1h,
-                     Fig1i, Fig1j,
-                     Fig1k, Fig1l,
-                     ncol = 2, widths = c(2.5,1),
-                     top = grid.arrange(LabAbundance, LabPersistence,
-                                        ncol = 2, widths = c(2.5,1)))
+Fig1 <- grid.arrange(Fig1a.l, Fig1a.c, Fig1a.r,
+                     Fig1b.l, Fig1b.c, Fig1b.r,
+                     Fig1c.l, Fig1c.c, Fig1c.r,
+                     Fig1d.l, Fig1d.c, Fig1d.r,
+                     Fig1e.l, Fig1e.c, Fig1e.r,
+                     Fig1f.l, Fig1f.c, Fig1f.r,
+                     ncol = 3, widths = c(2,2,1),
+                     top = grid.arrange(LabAbundance1,
+                                        LabAbundance2,
+                                        LabPersistence,
+                                        ncol = 3, widths = c(2,2,1)))
 
-#Portrait 7x10
-
-
-
-
-#Previous attempts ####
-
-library(Hmisc)
-#already have the functions of vpm
-
-#Subset of California Condor 1965-1980
-
-Observed.t=c(38,51,46,52,53, #1966-1969 (end 8, 10, 15)
-             28,             #(end 9, 11, 16)
-             33,             #(end 10, 12, 17)
-             35,             #(end 11, 13, 18)
-             17,             #(end 12, 14, 19)
-             23,             #(end 13, 15, 20)
-             27,             #(end 14, 16, 21)
-             14,             #(end 15, 17, 22)
-             13,             #(end 16, 18, 23)
-             12,16,11);
-Time.t=c(1:length(Observed.t));
-
-yt <- log(Observed.t)
-tt <- Time.t
-
-#Arbitrary, the half of initial population
-N.critical <- round(1/2*exp(yt[1]),0)
-
-#initial model
-yt1 <- yt[1:9]
-tt1 <- tt[1:9]
-
-#1 fit a population model (EGSS)
-egss.parms.1 <- egss_remle(yt = yt1,
-                              tt = tt1,
-                              fguess = guess_egss(yt = yt1,
-                                                  tt = tt1))
-#2 See population parameters to simulate
-egss.parms.1
-
-#1 Model fitted
-egss.predict.1 <- egss_predict(yt = yt1,
-                               tt = tt1,
-                               parms = egss.parms.1$remles,
-                               plot.it = F)
-
-#Conditions to simulations
-last.tt <- last(tt1)
-ntraj = 1
-l = last(tt[1:last.tt])
-len.sim <- c(3, 5, 10) #3+1, 5+1, 10+1
-
-#3 Simulate dynamics
-
-# Set up composite figure
-par(mfrow = c(1, 3), # 1 row, 3 columns,
-    mar = c(2, 2, 2, 2), #adjust margins (bottom, left, top, right)
-    oma = c(3, 3, 0, 0))
-
-for (i in seq_along(len.sim)){
-  plot(tt[1:last.tt],
-       exp(yt[1:last.tt]),
-       type = "p", lwd = 1, cex.lab = 1.25, col = "blue",pch = 16,
-       xlim = c(min(tt), 20),
-       xlab = "",
-       ylab = "",
-       ylim = c(0,80),
-       main = paste("Simulation window = ", len.sim[i], "years"))
-
-  minor.tick(nx = 5, ny = 5, tick.ratio = 0.5)
-
-  points(x = tt[1:last.tt],
-       y = egss.predict.1[[1]][,2],
-       type = "l", col = "black", pch = 1, lwd = 1.2)
-
-  points(x = tt[1:last.tt],
-         y = egss.predict.1[[1]][,2],
-         type = "p", col = "black", pch = 1, lwd = 1.2)
-
-  thres.times <- as.numeric(0:(len.sim[i]))
-  len <- max(thres.times) + 1
-
-  #ribbon
-  polygon(x = c(tt[last.tt]+1, tt[last.tt]+1,
-                tt[last.tt]+len-1, tt[last.tt]+len-1),
-          y = c(0,110,110,0),
-          col = "#ECECEC60",
-          border = F)
-
-  #simulation
-  sim.mat <- egss_sim(ntraj,
-                      tt = thres.times,
-                      parms = egss.parms.1$remles)
-
-  phi <- rep(0, ntraj)
-  last.points <- rep(0, ntraj)
-
-  for(n in 1:ntraj){
-    Pop.sim <- round(exp(sim.mat),0);
-    last.points[n] <- Pop.sim[len]
-
-    Pop.sim <- Pop.sim[-1] #Removing first simulation, last obs
-
-    simu.len <- thres.times[-1]
-
-    points(l + simu.len,
-          Pop.sim,
-          col = "#676767",
-          type = "l",
-          lty = "solid")
-
-    points(l + simu.len,
-           Pop.sim,
-           col = "#676767",
-           type = "p",
-           lty = "solid")
-
-    #Points below.threshold
-    below.threshold <- (Pop.sim < N.critical)
-    points(l + simu.len[below.threshold],
-           Pop.sim[below.threshold],
-           col = "red",
-           pch = 4)
-  }
-
-  abline(h = N.critical, lty=2, lwd=1);
-}
-
-#only for the third panel (13)
-#mtext(side = 2, outer = T, line = 1, "Abundance", cex = 0.8)
-
-#only for the fifth panel
-mtext(side = 1, outer = T, line = 0.5, "Time (years)", cex = 0.8)
-
-dev.off()
-
-plot.new()
-legend("center",
-         legend = c("Observed", "Predicted", "Simulated", "Below threshold"),
-         col = c("blue", "black", "#676767", "red"),
-         lty = c(NA, 1, 1, NA),
-       pch = c(16, 1, 1, 4),
-       lwd = c(1, 1.2, 1, NA),
- #        cex = 0.3,
-         bty = "n",
-         horiz = F)
-# Reset plotting layout
-
+#Portrait 8x11
