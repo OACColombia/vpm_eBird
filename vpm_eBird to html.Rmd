@@ -417,6 +417,47 @@ egss_sim <- function(nsims,tt,parms){
 }
 ```
 
+And we can conduct a parametric bootstrap to estimate confidence intervals of the predicted trajectory
+
+```{r load-egss_pboot}
+egss_pboot <- function(B=2,parms,yt, tt){
+	
+	t.i <- tt-tt[1]
+	nparms    <- length(parms);
+	preds.boot1<- matrix(0,nrow=B,ncol=length(t.i))
+
+		boot.remles <- matrix(0,nrow=B,ncol=nparms+1); 
+		all.sims  <- egss_sim(nsims=B,parms=parms,tt=tt);
+		all.preds <- egss_predict(parms=parms, yt=yt,tt=tt,plot.it="FALSE")
+		reml.preds<- all.preds[[1]][,2]
+
+		for(b in 1:B ){
+		
+			bth.timeseries <- all.sims[,b];
+			remles.out <- egss_reml(yt=bth.timeseries, tt=tt, fguess=parms);
+			boot.remles[b,] <- c(remles.out$remls, remles.out$lnL.hat);
+			all.bootpreds <- egss_predict(parms=remles.out$remls, yt=bth.timeseries,tt=tt,plot.it="FALSE");
+			preds.boot1[b,] <- all.bootpreds[[1]][,2]
+		} 
+	
+		CIs.mat <- apply(boot.remles,2,FUN=function(x){quantile(x,probs=c(0.025,0.975))});
+		CIs.mat <- rbind(CIs.mat[1,1:4],parms,CIs.mat[2,1:4]);
+		rownames(CIs.mat) <- c("2.5%","REMLE","97.5%");
+		colnames(CIs.mat) <- c("a", "sigmasq","tausq", "x0");
+		
+		preds.CIs1 <- apply(preds.boot1,2,FUN=function(x){quantile(x,probs=c(0.025,0.975))});
+		mean.boots <- apply(preds.boot1,2,FUN=function(x){quantile(x,probs=0.50)})
+		preds.CIs1 <- t(rbind(tt,reml.preds-(mean.boots-preds.CIs1[1,]), reml.preds, reml.preds+(preds.CIs1[2,]-mean.boots)));
+		colnames(preds.CIs1) <- c("Time","CI.lower","REMLE","CI.upper");
+
+		boot.list <- list(boot.remles = boot.remles, CIs.mat = CIs.mat, preds.CIs1 = preds.CIs1);
+		
+		return(boot.list)
+		
+}
+
+```
+
 ### Functions for the Ornstein-Uhlenbeck diffusion GSS - OUSS model
 
 The key to generalize the GSS for unequal sampling intervals lies in the mathematical insight that the solution of the discrete-time GSS model matches the solution at discrete time points of a diffusion process, which is a continuous time stochastic process. Specifically, the solution of the discrete time Gompertz model in the log scale matches exactly the well-known Ornstein-Uhlenbeck (OU) Gaussian diffusion process ([Dennis & Ponciano, 2014](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/13-1486.1)). Let $N_t$ represent the population abundance in the Gompertz diffusion with environmental stochasticity and no demographic stochasticity ([Dennis & Ponciano, 2014](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/13-1486.1); [Ponciano, 2018](https://doi.org/10.1016/j.tpb.2017.10.007)). This diffusion process is a well-known continuous-time version of an autoregressive process of order 1, characterized by a joint multivariate normal distribution of values across time points. The process is defined by its infinitesimal mean, variance, and covariance parameters ([Dennis & Ponciano, 2014](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/13-1486.1); [Ponciano, 2018](https://doi.org/10.1016/j.tpb.2017.10.007)). 
@@ -1470,9 +1511,34 @@ observed vector (`Observed.y`, the eBird weekly high counts in our
 case). For our example, we want to compare with standardized monitored
 surveys, so it might be convenient to change the names of this output.
 
+We can estimate the lower and upper 95% confidence intervals of the estimation with a parametric bootstrap
+
+```{r lower and upper CI}
+sk.egss.predict.init.CI <- egss_pboot(B = 100, 
+                                  parms = sk.egss.parms$remls,
+                                  yt = yt1,
+                                  tt = tt1)
+
+plot(x = sk.egss.predict.init.CI$preds.CIs1[,1],
+     y = sk.egss.predict.init.CI$preds.CIs1[,3],
+     type = "l",col = "black", 
+     ylab = "Abundance", xlab = "Time", main = "eBird",
+     ylim = c(0,45))
+lines(x = sk.egss.predict.init.CI$preds.CIs1[,1],
+     y = sk.egss.predict.init.CI$preds.CIs1[,2],
+     lty = 2, col = "darkgray")
+lines(x = sk.egss.predict.init.CI$preds.CIs1[,1],
+     y = sk.egss.predict.init.CI$preds.CIs1[,4],
+     lty = 2, col = "darkgray")
+points(x = sk.egss.predict.init[[1]][,1],
+       y = sk.egss.predict.init[[1]][,3],
+       col = "blue")
+```
+
+
 ```{r change names - combine for figure}
 #change names to combine
-colnames(sk.egss.predict.init[[1]]) <- c("Time.t", "Estimated_eBird_EGSS","eBird.Observed")
+colnames(sk.egss.predict.init[[1]]) <- c("Time.t", "Estimated_eBird_EGSS", "eBird.Observed")
 ```
 
 We can fit the EGSS for the standardized monitored in the same way
@@ -1527,6 +1593,30 @@ skSM.egss.predict.init <- egss_predict(yt = ytSM1,
 colnames(skSM.egss.predict.init[[1]]) <- c("Time.t", "Estimated_SKProj_EGSS","abundance.monitored")
 ```
 
+We can also compute the CI with parametric bootstrap
+
+```{r lower and upper CI for SM}
+skSM.egss.predict.init.CI <- egss_pboot(B = 100, 
+                                        parms = skSM.egss.parms$remls,
+                                        yt = ytSM1, 
+                                        tt = ttSM1)
+
+plot(x = skSM.egss.predict.init.CI$preds.CIs1[,1],
+     y = skSM.egss.predict.init.CI$preds.CIs1[,3],
+     type = "l",col = "black", 
+     ylab = "Abundance", xlab = "Time", main = "Standardized monitoring",
+     ylim = c(0,170))
+lines(x = skSM.egss.predict.init.CI$preds.CIs1[,1],
+     y = skSM.egss.predict.init.CI$preds.CIs1[,2],
+     lty = 2, col = "darkgray")
+lines(x = skSM.egss.predict.init.CI$preds.CIs1[,1],
+     y = skSM.egss.predict.init.CI$preds.CIs1[,4],
+     lty = 2, col = "darkgray")
+points(x = skSM.egss.predict.init[[1]][,1],
+       y = skSM.egss.predict.init[[1]][,3],
+       col = "blue")
+```
+
 To make the figure 3 of the main text, we combine the predicted trajectories in a single data frame to use `tidyverse` and `ggplot`.
 
 ```{r Figure 3a, fig.cap="Figure 3a - initial dynamic of the population"}
@@ -1534,37 +1624,32 @@ sk.Estimated <- data.frame(sk.egss.predict.init) |>
   left_join(data.frame(skSM.egss.predict.init)) |>
   left_join(datesPP) #this recover the observation date per week
 
-FigS3a <- sk.Estimated |>
+sk.Estimated_figA <- sk.Estimated |>
   pivot_longer(cols = !c(Time.t,observation.date),
                names_to = "group",
                values_to = "Abundance") |>
-  drop_na(Abundance) |>
-  ggplot(aes(x = observation.date, 
-             y = Abundance, 
-             fill = factor(group,
-                           levels = c("abundance.monitored",
-                                      "Estimated_SKProj_EGSS",
-                                      "eBird.Observed",
-                                      "Estimated_eBird_EGSS"))))+
+  drop_na(Abundance)
+
+
+FigS3a <-
+  ggplot(data = sk.Estimated_figA, aes(x = observation.date, 
+             y = Abundance))+
   geom_vline(xintercept = snailkites.PP$observation.date[92], 
              color = "gray", linetype = "dotted") +
-    geom_line(aes(color = factor(group,
+  geom_point(data = sk.Estimated_figA |>
+                filter(group %in% c("abundance.monitored",
+                                      "eBird.Observed")), 
+             aes(fill = factor(group,
                            levels = c("abundance.monitored",
-                                      "Estimated_SKProj_EGSS",
-                                      "eBird.Observed",
-                                      "Estimated_eBird_EGSS"))), 
-              alpha = 0.75, linetype = "solid") +
-    geom_point(aes(shape = factor(group,
-                           levels = c("abundance.monitored",
-                                      "Estimated_SKProj_EGSS",
-                                      "eBird.Observed",
-                                      "Estimated_eBird_EGSS")),
-                   alpha = factor(group,
-                           levels = c("abundance.monitored",
-                                      "Estimated_SKProj_EGSS",
-                                      "eBird.Observed",
-                                      "Estimated_eBird_EGSS"))), 
-               color = "black", size = 2)+
+                                      "eBird.Observed"))),
+               color = "black", size = 2, shape = 21)+
+    geom_line(data = sk.Estimated_figA |>
+                filter(group %in% c("Estimated_SKProj_EGSS",
+                                  "Estimated_eBird_EGSS")),
+              aes(color = factor(group,
+                           levels = c("Estimated_SKProj_EGSS",
+                                      "Estimated_eBird_EGSS"))),
+              linetype = "dashed", size = 1) +
     labs(x = "Observation date",
        y = "Observed/predicted weekly high count",
        tag = expression(bold("(a)")),
@@ -1576,27 +1661,29 @@ FigS3a <- sk.Estimated |>
   scale_x_date(breaks = seq(as.Date("2018-01-01"), 
                             max(sk.Estimated$observation.date), 
                             by = "3 months"), date_labels="%b \n%Y")+
-    scale_color_manual(values = c("white", "#fc8d59","white", "#91bfdb"),
-                       labels = c("Standardized Monitoring (SM)", 
-                                  "Predicted trajectory (SM - EGSS)", 
-                                  "eBird", 
+    scale_color_manual(values = c("#FE996B", "#4575b4"),
+                       labels = c("Predicted trajectory (SM - EGSS)", 
                                   "Predicted trajectory (eBird - EGSS)"))+
-    scale_fill_manual(values = c("#d73027", "#fc8d59", "#4575b4", "#91bfdb"),
+    scale_fill_manual(values = c("#fc8d5999","#91bfdb99"),
                        labels = c("Standardized Monitoring (SM)", 
-                                  "Predicted trajectory (SM - EGSS)", 
-                                  "eBird", 
-                                  "Predicted trajectory (eBird - EGSS)"))+
-    scale_shape_manual(values = c(21, 24, 21, 24),
-                       labels = c("Standardized Monitoring (SM)", 
-                                  "Predicted trajectory (SM - EGSS)", 
-                                  "eBird", 
-                                  "Predicted trajectory (eBird - EGSS)"))+
-    scale_alpha_manual(values = c(0.75, 0.75, 0.45, 0.65),
-                       labels = c("Standardized Monitoring (SM)", 
-                                  "Predicted trajectory (SM - EGSS)", 
-                                  "eBird", 
-                                  "Predicted trajectory (eBird - EGSS)"))+
+                                  "eBird"))+
    theme_classic()+
+    geom_segment(aes(x = snailkites.PP$observation.date[92],
+                     xend = snailkites.PP$observation.date[96],
+                     y = 75,
+                     yend = 75),
+                 arrow = arrow(length = unit(0.2, "cm")),
+                 color = "darkgray", size = 1)+
+    geom_segment(aes(x = snailkites.PP$observation.date[92],
+                     xend = snailkites.PP$observation.date[96],
+                     y = 25,
+                     yend = 25),
+                 arrow = arrow(length = unit(0.2, "cm")),
+                 color = "darkgray", size = 1)+
+  annotate(geom = "text", label = expression(bold(varphi[italic(i)]~" estimation")),
+           color = "darkgray",
+           x = snailkites.PP$observation.date[93], 
+           y = 50, angle = 90, vjust = 1)+
     theme(legend.position = c(0.25, 0.8), 
           legend.title = element_blank(),
         legend.spacing.y = unit(-0.5, "cm"),
@@ -1613,31 +1700,34 @@ lm(Estimated_eBird_EGSS~abundance.monitored, data = sk.Estimated)
 #Predicted EGSS from Standardized Monitored ~ Observed counts SM
 lm(Estimated_SKProj_EGSS~abundance.monitored, data = sk.Estimated)
 
-
 FigS3b <- ggplot(sk.Estimated)+
   geom_abline(slope = 1)+
   geom_smooth(aes(x=abundance.monitored, y=Estimated_SKProj_EGSS),
-              method = "lm", color = "#fc8d59", 
-              se = T, fill = "#fc8d5905", linetype = "dashed")+
+              method = "lm", color = "#FE996B99", 
+              se = F, fill = "#fc8d5905", linetype = "solid")+
+  geom_line(aes(x=abundance.monitored, y=Estimated_SKProj_EGSS), 
+             color = "#FE996B", linetype = "dashed", size = 1)+
   geom_point(aes(x=abundance.monitored, y=Estimated_SKProj_EGSS), 
-             color = "black", fill = "#fc8d59", shape = 24, alpha = 0.75, size = 2)+
+             color = "black", fill = "#FE996B", shape = 24, size = 2)+
 # geom_text(x = 25, y = 50, 
 #            label = lm_eqn(df = sk.Estimated,
 #                           x = sk.Estimated$abundance.monitored, 
 #                           y = sk.Estimated$Estimated_SKProj_EGSS), 
 #            parse = TRUE, color = "#fc8d59")+
   geom_smooth(aes(x=abundance.monitored, y=Estimated_eBird_EGSS),
-              method = "lm", color = "#91bfdb", 
-              se = T, fill = "#91bfdb05", linetype = "dashed")+
+              method = "lm", color = "#4575b499", 
+              se = F, fill = "#91bfdb05", linetype = "solid")+
+  geom_line(aes(x=abundance.monitored, y=Estimated_eBird_EGSS), 
+             color = "#4575b4", linetype = "dashed", size = 1)+
   geom_point(aes(x=abundance.monitored, y=Estimated_eBird_EGSS), 
-             color = "black", fill = "#91bfdb", shape = 24, alpha = 0.75, size = 1)+
+             color = "black", fill = "#4575b4", shape = 24, size = 2)+
 #  geom_text(x = 50, y = 0, 
 #            label = lm_eqn(df = sk.Estimated,
 #                           x = sk.Estimated$abundance.monitored, 
 #                           y = sk.Estimated$Estimated_eBird_EGSS), 
 #            parse = TRUE, color = "#91bfdb")+
   scale_y_continuous(limits = c(0,80))+
-  labs(x = "Observed weekly high count (SM)",
+  labs(x = "\nObserved weekly high count (SM)",
        y = "Predicted trajectory of weekly high count",
        tag = expression(bold("(b)")))+
   coord_fixed()+
@@ -1652,10 +1742,10 @@ It looks not good in the `Rmd` file, but it is saved with good proportions
 
 ```{r exporting figure 3, eval=TRUE}
 ggsave("results/Figure3ab_EstimatedTrajectory2initdays.pdf", 
-       plot = FigS3, dpi = 300, width = 10, height = 4, units = "in")
+       plot = FigS3, dpi = 300, width = 10, height = 4.2, units = "in")
 
 ggsave("results/Figure3ab_EstimatedTrajectory2initdays.png", 
-       plot = FigS3, dpi = 300, width = 10, height = 4, units = "in")
+       plot = FigS3, dpi = 300, width = 10, height = 4.2, units = "in")
 ```
 
 | ![(Same figure 3 in the main text) Weekly predicted (triangles) and observed (circles) high counts of snail kites from standardized monitoring (orange) and eBird (blue). Predicted values correspond to Exponential Growth State-Space (EGSS) models fitted for the two datasets during initial population dynamic in north-central Florida (a; from week 1, January 2018 to week 101, December 2019). (b) The predicted trajectory of standardized monitoring data matched closely the weekly high counts data (intercept: $-0.63±1.08$ SE; slope: $0.93±0.03$), while the predicted trajectory from eBird data was far lower than the identity (intercept: $2.34±0.79$; slope: $0.07±0.02$) compared with observed standardized monitored high counts; solid black line in (b) is the identity (1:1 relationship). Still, the estimated population parameters were very similar between the two datasets, with the main difference being higher observation noise in the model fitted with eBird data compared to the model fitted with standardized monitored.](results/Figure3ab_EstimatedTrajectory2initdays.png){width=100%}
@@ -2520,6 +2610,14 @@ tt
 #the first two years length
 last.tt <- which(tt == 101) 
 
+#Simulation length (1, 2, and 5 generations)
+len.sim <- c(251, 501, 1251)
+
+#which correspond to three timeframes
+timeframes <- c("250 weeks or ~5 years", 
+                "500 weeks or ~10 years",
+                "1250 weeks or ~25 years")
+
 #Number of trajectories and bootstraps (CIs)
 ntraj = 50000
 
@@ -2609,7 +2707,7 @@ timelast
 
 | ![Iterating all EGSS - end](data_raw/IterateAll_eBird_NoFigs_EGSS2.png){width=100%}<br>
 
-This is a longer process ($\sim4$ to $\sim10$ hours; currently is `{r eval=FALSE}`), so we saved the `phi_results` (with `phi_1st`, `phi_hat`, `phi_3rd`, and `phi_SD`), and `modelSS` vectors as data frames to make a plot. We also saved the four parameters in each week `parms` list.
+This is a longer process ($\sim3$ days; currently is `{r eval=FALSE}`), so we saved the `phi_results` (with `phi_1st`, `phi_hat`, `phi_3rd`, and `phi_SD`), and `modelSS` vectors as data frames to make a plot. We also saved the four parameters in each week `parms` list.
 
 ```{r extracting results phi estimation ebird in df, eval=FALSE}
 #creating data frames for phi_mean, phi_SD, modelSS, and parms
@@ -3021,13 +3119,13 @@ head(phi_combined)
 
 Then, we add the dates and filter by the three Simulation windows (Timeframes)
 
-## $\hat{\varphi}$ Temporal trend - Figure 4 and extended figure
+## $\hat{\varphi}$ Temporal trend - Figure 4 and extended figures
 
 ```{r figure 4a}
 #add dates while filtering Timeframe
 phi_data_plot <- datesPP |> 
   left_join(phi_combined |> 
-              filter(Timeframe == "150 weeks or ~3 years")) |>
+              filter(Timeframe == "250 weeks or ~5 years")) |>
   ungroup() |> 
   pivot_longer(cols = c(phi.1st, phi.1stSM),
                names_to = "group.1st",
@@ -3049,154 +3147,89 @@ phi_data_plot <- datesPP |>
 phi_data_plot
 
 
-ggplot(data = phi_data_plot,
+FigOUSS_A <- ggplot(data = phi_data_plot,
        aes(x = observation.date, 
            y = phi_hat, 
            color = original.dataset)) +
+    geom_vline(xintercept = snailkites.PP$observation.date[92], 
+             color = "gray", linetype = "dotted") +
     facet_wrap(~dataset, ncol = 3) +
     geom_linerange(aes(ymin = phi_hat-phi_SD,
                        ymax = phi_hat+phi_SD),
-                   alpha = 0.5) +
-    geom_pointrange(aes(shape = Model,
-                        ymin = phi_1st,
-                        ymax = phi_3rd),
-                   alpha = 0.5) +
+                   alpha = 0.15) +
+    geom_linerange(aes(ymin = phi_1st,
+                       ymax = phi_3rd),
+                   alpha = 0.15) +
+    geom_point(aes(shape = Model),
+                   alpha = 0.65) +
     scale_y_continuous(expand = c(0,0))+
-    theme_classic() +
-    coord_cartesian(ylim = c(0,1))
-
-
-
-
-
-#Ribbon lo-hi phi (SD) for the two datasets
-#eBird EGSS
-ribbon_phi_eBird <- phi_data_plot |>
-  filter(dataset == "eBird.EGSS",
-         group %in% c("phi.hat", "SD.phi")) |>
-  pivot_wider(names_from = group, 
-              values_from = phi_values, 
-              values_fn = {mean}) |>
-  mutate(phi_values = phi.hat)
-
-#eBird OUSS vs EGSS
-ribbon_phi_eBird_OUSSEGSS <- phi_data_plot |>
-  filter(dataset == "eBird.OUSS.EGSS",
-         group %in% c("phi.hat", "SD.phi")) |>
-  pivot_wider(names_from = group, 
-              values_from = phi_values, 
-              values_fn = {mean}) |>
-  mutate(phi_values = phi.hat)
-
-ribbon_phi_SM <- phi_data_plot |>
-  filter(dataset == "SM",
-         group %in% c("phi.hatSM", "SD.phiSM")) |>
-  pivot_wider(names_from = group, 
-              values_from = phi_values, 
-              values_fn = {mean})|>
-  mutate(phi_values = phi.hatSM)
-
-#three trends
-FigOUSS_A <- ggplot(phi_data_plot, 
-       aes(x = observation.date, y = phi_values)) +
-  facet_grid(~dataset)+
-  geom_vline(xintercept = snailkites.PP$observation.date[92], 
-             color = "gray", linetype = "dotted") +
-  geom_ribbon(data = ribbon_phi_SM,
-              aes(ymin = phi_values+SD.phiSM, 
-                  ymax = phi_values-SD.phiSM),
-              fill = "#fc8d5925") +
-  geom_ribbon(data = ribbon_phi_eBird,
-              aes(ymin = phi_values+SD.phi, 
-                  ymax = phi_values-SD.phi),
-              fill = "#91bfdb25")+
-  geom_ribbon(data = ribbon_phi_eBird_OUSSEGSS,
-              aes(ymin = phi_values+SD.phi, 
-                  ymax = phi_values-SD.phi),
-              fill = "#91bfdb25")+
-  geom_line(data = phi_data_plot |> 
-               filter(group %in% c("phi.hat", "phi.hatSM")),
-            aes(color = group), linetype = "dashed") +
-  geom_point(data = phi_data_plot |> 
-               filter(group %in% c("phi.hat", "phi.hatSM")),
-             aes(shape = Model,
-                 color = group),
-             size = 2) +
-  labs(x = "Observation date",
-       y = expression(italic(phi)),
-       tag = expression(bold("(a)")),
-       title = "Simulation window: 150 weeks or ~3 years")  +
-  coord_cartesian(ylim = c(0, 1))+
-  scale_x_date(limits = c(snailkites.PP$observation.date[90],
+    scale_color_manual(values = c("#91bfdb95",
+                                "#fc8d5995"),
+                     labels = c(expression(italic(varphi)[eBird]),
+                                expression(italic(varphi)[SM])))+
+    scale_x_date(limits = c(snailkites.PP$observation.date[90],
                           max(snailkites.PP$observation.date)),
                breaks = seq(snailkites.PP$observation.date[90], 
                             max(snailkites.PP$observation.date), 
                             by = "12 months"), date_labels="%b\n%Y")+
-  scale_color_manual(values = c("#91bfdb95",
-                                "#fc8d5995"),
-                     labels = c(expression(italic(phi)[eBird]),
-                                expression(italic(phi)[SM])))+
-  theme_classic() +
-  theme(legend.title = element_blank(),
-        legend.position = c(0.5, 0.8),
+  labs(x = "Observation date",
+       y = expression(italic(varphi)),
+       tag = expression(bold("(a)")),
+       title = "Simulation window: 250 weeks or ~5 years",
+       subtitle = "(one generation)")  +
+    theme_classic() +
+    theme(legend.title = element_blank(),
+        legend.position = c(0.9, 0.8),
         legend.spacing.y = unit(-0.5, "cm"),
         legend.background = element_blank(),
         legend.box.background = element_rect(colour = "black"))+
   guides(color = guide_legend(ncol=2),
-         shape = guide_legend(ncol=2))
-
+         shape = guide_legend(ncol=2))+
+    coord_cartesian(ylim = c(0,1))
 FigOUSS_A
 
 #Only EGSS comparison
 
 #Figure overlap phi
-Figure4a <- ggplot(phi_data_plot, 
-                aes(x = observation.date, y = phi_values)) +
-  geom_vline(xintercept = snailkites.PP$observation.date[92], 
+
+Figure4a <- ggplot(data = phi_data_plot |>
+         filter(dataset != "eBird.OUSS.EGSS"),
+       aes(x = observation.date, 
+           y = phi_hat, 
+           color = original.dataset)) +
+    geom_vline(xintercept = snailkites.PP$observation.date[92], 
              color = "gray", linetype = "dotted") +
-  geom_ribbon(data = ribbon_phi_SM,
-              aes(ymin = phi_values+SD.phiSM, 
-                  ymax = phi_values-SD.phiSM),
-              fill = "#fc8d5925") +
-  geom_ribbon(data = ribbon_phi_eBird,
-              aes(ymin = phi_values+SD.phi, 
-                  ymax = phi_values-SD.phi),
-              fill = "#91bfdb25") +
-  geom_line(data = phi_data_plot |> 
-               filter(dataset != "eBird.OUSS.EGSS",
-                      group %in% c("phi.hat", "phi.hatSM")),
-            aes(color = group), linetype = "dashed") +
-  geom_point(data = phi_data_plot |> 
-               filter(dataset != "eBird.OUSS.EGSS",
-                      group %in% c("phi.hat", "phi.hatSM")),
-             aes(color = group, fill = group),
-             size = 2, shape = 21) +
-  labs(x = "Observation date",
-       y = expression(paste("Persistence (", varphi,")")),
-       tag = expression(bold("(a)")),
-       title = "Simulation window: 150 weeks or ~3 years")  +
-  coord_cartesian(ylim = c(0, 1))+
-  scale_x_date(limits = c(snailkites.PP$observation.date[92],
+    geom_linerange(aes(ymin = phi_hat-phi_SD,
+                       ymax = phi_hat+phi_SD),
+                   alpha = 0.15) +
+    geom_linerange(aes(ymin = phi_1st,
+                       ymax = phi_3rd),
+                   alpha = 0.15, size = 1) +
+    geom_point(alpha = 0.65) +
+    scale_y_continuous(expand = c(0,0))+
+    scale_color_manual(values = c("#91bfdb95",
+                                "#fc8d5995"),
+                     labels = c(expression(italic(varphi)[eBird]),
+                                expression(italic(varphi)[SM])))+
+    scale_x_date(limits = c(snailkites.PP$observation.date[90],
                           max(snailkites.PP$observation.date)),
                breaks = seq(snailkites.PP$observation.date[90], 
                             max(snailkites.PP$observation.date), 
                             by = "12 months"), date_labels="%b\n%Y")+
-  scale_color_manual(values = c("#91bfdb95",
-                                "#fc8d5995"),
-                     labels = c(expression(italic(phi)[eBird]),
-                                expression(italic(phi)[SM])))+
-  scale_fill_manual(values = c("#91bfdb75",
-                                "#fc8d5975"),
-                     labels = c(expression(italic(phi)[eBird]),
-                                expression(italic(phi)[SM])))+
-  theme_classic() +
-  theme(legend.title = element_blank(),
-        legend.position = c(0.85, 0.85),
+  labs(x = "Observation date",
+       y = expression(paste("Persistence (",italic(varphi),")")),
+       tag = expression(bold("(a)")),
+       title = "Simulation window: 250 weeks or ~5 years",
+       subtitle = "(one generation)")  +
+    theme_classic() +
+    theme(legend.title = element_blank(),
+        legend.position = c(0.85, 0.9),
         legend.spacing.y = unit(-0.5, "cm"),
         legend.background = element_blank(),
         legend.box.background = element_rect(colour = "black"))+
   guides(color = guide_legend(ncol=2),
-         shape = guide_legend(ncol=2))
+         shape = guide_legend(ncol=2))+
+    coord_cartesian(ylim = c(0,1))
 
 Figure4a
 ```
@@ -3206,141 +3239,112 @@ Figure4a
 #add dates while filtering Timeframe
 phi_data_plot <- datesPP |> 
   left_join(phi_combined |> 
-              filter(Timeframe == "250 weeks or ~5 years")) |>
-  ungroup() |>
-  pivot_longer(cols = !c(Timeframe, 
-                         Time.t, 
-                         observation.date, 
-                         Model,
-                         original.dataset,
-                         dataset,
-                         ln.lambda, 
-                         sigma.sqr, 
-                         tau.sqr,
-                         x0),
+              filter(Timeframe == "500 weeks or ~10 years")) |>
+  ungroup() |> 
+  pivot_longer(cols = c(phi.1st, phi.1stSM),
+               names_to = "group.1st",
+               values_to = "phi_1st") |> 
+  drop_na(phi_1st) |>
+  pivot_longer(cols = c(phi.hat, phi.hatSM),
                names_to = "group",
-               values_to = "phi_values") |> 
-  drop_na(phi_values)
+               values_to = "phi_hat") |> 
+  drop_na(phi_hat) |>
+  pivot_longer(cols = c(phi.3rd, phi.3rdSM),
+               names_to = "group.3rd",
+               values_to = "phi_3rd") |> 
+  drop_na(phi_3rd) |> 
+  pivot_longer(cols = c(SD.phi, SD.phiSM),
+               names_to = "group.SD",
+               values_to = "phi_SD") |> 
+  drop_na(phi_SD)
   
 phi_data_plot
 
-#Ribbon lo-hi phi (SD) for the two datasets
-#eBird EGSS
-ribbon_phi_eBird <- phi_data_plot |>
-  filter(dataset == "eBird.EGSS",
-         group %in% c("phi.hat", "SD.phi")) |>
-  pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean}) |>
-  mutate(phi_values = phi.hat)
 
-#eBird OUSS vs EGSS
-ribbon_phi_eBird_OUSSEGSS <- phi_data_plot |>
-  filter(dataset == "eBird.OUSS.EGSS",
-         group %in% c("phi.hat", "SD.phi")) |>
-  pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean}) |>
-  mutate(phi_values = phi.hat)
-
-ribbon_phi_SM <- phi_data_plot |>
-  filter(dataset == "SM",
-         group %in% c("phi.hatSM", "SD.phiSM")) |>
-  pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean})|>
-  mutate(phi_values = phi.hatSM)
-
-#three trends
-FigOUSS_B <- ggplot(phi_data_plot, 
-       aes(x = observation.date, y = phi_values)) +
-  facet_grid(~dataset)+
-  geom_vline(xintercept = snailkites.PP$observation.date[92], 
+FigOUSS_B <- ggplot(data = phi_data_plot,
+       aes(x = observation.date, 
+           y = phi_hat, 
+           color = original.dataset)) +
+    geom_vline(xintercept = snailkites.PP$observation.date[92], 
              color = "gray", linetype = "dotted") +
-  geom_ribbon(data = ribbon_phi_SM,
-              aes(ymin = phi_values+SD.phiSM, 
-                  ymax = phi_values-SD.phiSM),
-              fill = "#fc8d5925") +
-  geom_ribbon(data = ribbon_phi_eBird,
-              aes(ymin = phi_values+SD.phi, 
-                  ymax = phi_values-SD.phi),
-              fill = "#91bfdb25")+
-  geom_ribbon(data = ribbon_phi_eBird_OUSSEGSS,
-              aes(ymin = phi_values+SD.phi, 
-                  ymax = phi_values-SD.phi),
-              fill = "#91bfdb25")+
-  geom_line(data = phi_data_plot |> 
-               filter(group %in% c("phi.hat", "phi.hatSM")),
-            aes(color = group), linetype = "dashed") +
-  geom_point(data = phi_data_plot |> 
-               filter(group %in% c("phi.hat", "phi.hatSM")),
-             aes(shape = Model,
-                 color = group),
-             size = 2) +
-  labs(x = "Observation date",
-       y = expression(paste("Persistence (", phi,")")),
-       tag = expression(bold("(b)")),
-       title = "Simulation window: 250 weeks or ~5 years")  +
-  coord_cartesian(ylim = c(0, 1))+
-  scale_x_date(limits = c(snailkites.PP$observation.date[92],
+    facet_wrap(~dataset, ncol = 3) +
+    geom_linerange(aes(ymin = phi_hat-phi_SD,
+                       ymax = phi_hat+phi_SD),
+                   alpha = 0.15) +
+    geom_linerange(aes(ymin = phi_1st,
+                       ymax = phi_3rd),
+                   alpha = 0.15) +
+    geom_point(aes(shape = Model),
+                   alpha = 0.65) +
+    scale_y_continuous(expand = c(0,0))+
+    scale_color_manual(values = c("#91bfdb95",
+                                "#fc8d5995"),
+                     labels = c(expression(italic(phi)[eBird]),
+                                expression(italic(phi)[SM])))+
+    scale_x_date(limits = c(snailkites.PP$observation.date[90],
                           max(snailkites.PP$observation.date)),
                breaks = seq(snailkites.PP$observation.date[90], 
                             max(snailkites.PP$observation.date), 
                             by = "12 months"), date_labels="%b\n%Y")+
-  scale_color_manual(values = c("#91bfdb95",
-                                "#fc8d5995"),
-                     labels = c(expression(italic(phi)[eBird]),
-                                expression(italic(phi)[SM])))+
-  theme_classic() +
-  theme(legend.title = element_blank(),
+  labs(x = "Observation date",
+       y = expression(italic(varphi)),
+       tag = expression(bold("(b)")),
+       title = "Simulation window: 500 weeks or ~10 years",
+       subtitle = "(two generations)")  +
+    theme_classic() +
+    theme(legend.title = element_blank(),
         legend.position = "none",
         legend.spacing.y = unit(-0.5, "cm"),
         legend.background = element_blank(),
         legend.box.background = element_rect(colour = "black"))+
   guides(color = guide_legend(ncol=2),
-         shape = guide_legend(ncol=2))
+         shape = guide_legend(ncol=2))+
+    coord_cartesian(ylim = c(0,1))
+
 FigOUSS_B
 
 #Only EGSS comparison
 
 #Figure overlap phi
-Figure4b <- ggplot(phi_data_plot, 
-                aes(x = observation.date, y = phi_values)) +
-  geom_vline(xintercept = snailkites.PP$observation.date[92], 
+
+Figure4b <- ggplot(data = phi_data_plot |>
+         filter(dataset != "eBird.OUSS.EGSS"),
+       aes(x = observation.date, 
+           y = phi_hat, 
+           color = original.dataset)) +
+    geom_vline(xintercept = snailkites.PP$observation.date[92], 
              color = "gray", linetype = "dotted") +
-  geom_ribbon(data = ribbon_phi_SM,
-              aes(ymin = phi_values+SD.phiSM, 
-                  ymax = phi_values-SD.phiSM),
-              fill = "#fc8d5925") +
-  geom_ribbon(data = ribbon_phi_eBird,
-              aes(ymin = phi_values+SD.phi, 
-                  ymax = phi_values-SD.phi),
-              fill = "#91bfdb25") +
-  geom_line(data = phi_data_plot |> 
-               filter(dataset != "eBird.OUSS.EGSS",
-                      group %in% c("phi.hat", "phi.hatSM")),
-            aes(color = group), linetype = "dashed") +
-  geom_point(data = phi_data_plot |> 
-               filter(dataset != "eBird.OUSS.EGSS",
-                      group %in% c("phi.hat", "phi.hatSM")),
-             aes(color = group, fill = group),
-             size = 2, shape = 21) +
-  labs(x = "Observation date",
-       y = expression(paste("Persistence (", phi,")")),
-       tag = expression(bold("(b)")),
-       title = "Simulation window: 250 weeks or ~5 years",
-       color = "Dataset",
-       fill = "Dataset")  +
-  coord_cartesian(ylim = c(0, 1))+
-  scale_x_date(limits = c(snailkites.PP$observation.date[92],
+    geom_linerange(aes(ymin = phi_hat-phi_SD,
+                       ymax = phi_hat+phi_SD),
+                   alpha = 0.15) +
+    geom_linerange(aes(ymin = phi_1st,
+                       ymax = phi_3rd),
+                   alpha = 0.15, size = 1) +
+    geom_point(alpha = 0.65) +
+    scale_y_continuous(expand = c(0,0))+
+    scale_color_manual(values = c("#91bfdb95",
+                                "#fc8d5995"),
+                     labels = c(expression(italic(phi)[eBird]),
+                                expression(italic(phi)[SM])))+
+    scale_x_date(limits = c(snailkites.PP$observation.date[90],
                           max(snailkites.PP$observation.date)),
                breaks = seq(snailkites.PP$observation.date[90], 
                             max(snailkites.PP$observation.date), 
                             by = "12 months"), date_labels="%b\n%Y")+
-  scale_color_manual(values = c("#91bfdb95",
-                                "#fc8d5995"),
-                     labels = c(expression(italic(phi)[eBird]),
-                                expression(italic(phi)[SM])))+
-  scale_fill_manual(values = c("#91bfdb75",
-                                "#fc8d5975"),
-                     labels = c(expression(italic(phi)[eBird]),
-                                expression(italic(phi)[SM])))+
-  theme_classic() +
-  theme(legend.position = "none")
+  labs(x = "Observation date",
+       y = expression(paste("Persistence (",italic(varphi),")")),
+       tag = expression(bold("(b)")),
+       title = "Simulation window: 500 weeks or ~10 years",
+       subtitle = "(two generations)")  +
+    theme_classic() +
+    theme(legend.title = element_blank(),
+        legend.position = "none",
+        legend.spacing.y = unit(-0.5, "cm"),
+        legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black"))+
+  guides(color = guide_legend(ncol=2),
+         shape = guide_legend(ncol=2))+
+    coord_cartesian(ylim = c(0,1))
 
 Figure4b
 ```
@@ -3350,139 +3354,112 @@ Figure4b
 #add dates while filtering Timeframe
 phi_data_plot <- datesPP |> 
   left_join(phi_combined |> 
-              filter(Timeframe == "500 weeks or ~10 years")) |>
-  ungroup() |>
-  pivot_longer(cols = !c(Timeframe, 
-                         Time.t, 
-                         observation.date, 
-                         Model,
-                         original.dataset,
-                         dataset,
-                         ln.lambda, 
-                         sigma.sqr, 
-                         tau.sqr,
-                         x0),
+              filter(Timeframe == "1250 weeks or ~25 years")) |>
+  ungroup() |> 
+  pivot_longer(cols = c(phi.1st, phi.1stSM),
+               names_to = "group.1st",
+               values_to = "phi_1st") |> 
+  drop_na(phi_1st) |>
+  pivot_longer(cols = c(phi.hat, phi.hatSM),
                names_to = "group",
-               values_to = "phi_values") |> 
-  drop_na(phi_values)
+               values_to = "phi_hat") |> 
+  drop_na(phi_hat) |>
+  pivot_longer(cols = c(phi.3rd, phi.3rdSM),
+               names_to = "group.3rd",
+               values_to = "phi_3rd") |> 
+  drop_na(phi_3rd) |> 
+  pivot_longer(cols = c(SD.phi, SD.phiSM),
+               names_to = "group.SD",
+               values_to = "phi_SD") |> 
+  drop_na(phi_SD)
   
 phi_data_plot
 
-#Ribbon lo-hi phi (SD) for the two datasets
-#eBird EGSS
-ribbon_phi_eBird <- phi_data_plot |>
-  filter(dataset == "eBird.EGSS",
-         group %in% c("phi.hat", "SD.phi")) |>
-  pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean}) |>
-  mutate(phi_values = phi.hat)
 
-#eBird OUSS vs EGSS
-ribbon_phi_eBird_OUSSEGSS <- phi_data_plot |>
-  filter(dataset == "eBird.OUSS.EGSS",
-         group %in% c("phi.hat", "SD.phi")) |>
-  pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean}) |>
-  mutate(phi_values = phi.hat)
-
-ribbon_phi_SM <- phi_data_plot |>
-  filter(dataset == "SM",
-         group %in% c("phi.hatSM", "SD.phiSM")) |>
-  pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean})|>
-  mutate(phi_values = phi.hatSM)
-
-#three trends
-FigOUSS_C <- ggplot(phi_data_plot, 
-       aes(x = observation.date, y = phi_values)) +
-  facet_grid(~dataset)+
-  geom_vline(xintercept = snailkites.PP$observation.date[92], 
+FigOUSS_C <- ggplot(data = phi_data_plot,
+       aes(x = observation.date, 
+           y = phi_hat, 
+           color = original.dataset)) +
+    geom_vline(xintercept = snailkites.PP$observation.date[92], 
              color = "gray", linetype = "dotted") +
-  geom_ribbon(data = ribbon_phi_SM,
-              aes(ymin = phi_values+SD.phiSM, 
-                  ymax = phi_values-SD.phiSM),
-              fill = "#fc8d5925") +
-  geom_ribbon(data = ribbon_phi_eBird,
-              aes(ymin = phi_values+SD.phi, 
-                  ymax = phi_values-SD.phi),
-              fill = "#91bfdb25")+
-  geom_ribbon(data = ribbon_phi_eBird_OUSSEGSS,
-              aes(ymin = phi_values+SD.phi, 
-                  ymax = phi_values-SD.phi),
-              fill = "#91bfdb25")+
-  geom_line(data = phi_data_plot |> 
-               filter(group %in% c("phi.hat", "phi.hatSM")),
-            aes(color = group), linetype = "dashed") +
-  geom_point(data = phi_data_plot |> 
-               filter(group %in% c("phi.hat", "phi.hatSM")),
-             aes(shape = Model,
-                 color = group),
-             size = 2) +
-  labs(x = "Observation date",
-       y = expression(italic(phi)),
-       tag = expression(bold("(c)")),
-       title = "Simulation window: 500 weeks or ~10 years")  +
-  coord_cartesian(ylim = c(0, 1))+
-  scale_x_date(limits = c(snailkites.PP$observation.date[92],
+    facet_wrap(~dataset, ncol = 3) +
+    geom_linerange(aes(ymin = phi_hat-phi_SD,
+                       ymax = phi_hat+phi_SD),
+                   alpha = 0.15) +
+    geom_linerange(aes(ymin = phi_1st,
+                       ymax = phi_3rd),
+                   alpha = 0.15) +
+    geom_point(aes(shape = Model),
+                   alpha = 0.65) +
+    scale_y_continuous(expand = c(0,0))+
+    scale_color_manual(values = c("#91bfdb95",
+                                "#fc8d5995"),
+                     labels = c(expression(italic(phi)[eBird]),
+                                expression(italic(phi)[SM])))+
+    scale_x_date(limits = c(snailkites.PP$observation.date[90],
                           max(snailkites.PP$observation.date)),
                breaks = seq(snailkites.PP$observation.date[90], 
                             max(snailkites.PP$observation.date), 
                             by = "12 months"), date_labels="%b\n%Y")+
-  scale_color_manual(values = c("#91bfdb95",
-                                "#fc8d5995"),
-                     labels = c(expression(italic(phi)[eBird]),
-                                expression(italic(phi)[SM])))+
-  theme_classic() +
-  theme(legend.title = element_blank(),
+  labs(x = "Observation date",
+       y = expression(italic(varphi)),
+       tag = expression(bold("(c)")),
+       title = "Simulation window: 1250 weeks or ~25 years",
+       subtitle = "(five generations)")  +
+    theme_classic() +
+    theme(legend.title = element_blank(),
         legend.position = "none",
         legend.spacing.y = unit(-0.5, "cm"),
         legend.background = element_blank(),
         legend.box.background = element_rect(colour = "black"))+
   guides(color = guide_legend(ncol=2),
-         shape = guide_legend(ncol=2))
+         shape = guide_legend(ncol=2))+
+    coord_cartesian(ylim = c(0,1))
+
 FigOUSS_C
 
 #Only EGSS comparison
 
 #Figure overlap phi
-Figure4c <- ggplot(phi_data_plot, 
-                aes(x = observation.date, y = phi_values)) +
-  geom_vline(xintercept = snailkites.PP$observation.date[92], 
+
+Figure4c <- ggplot(data = phi_data_plot |>
+         filter(dataset != "eBird.OUSS.EGSS"),
+       aes(x = observation.date, 
+           y = phi_hat, 
+           color = original.dataset)) +
+    geom_vline(xintercept = snailkites.PP$observation.date[92], 
              color = "gray", linetype = "dotted") +
-  geom_ribbon(data = ribbon_phi_SM,
-              aes(ymin = phi_values+SD.phiSM, 
-                  ymax = phi_values-SD.phiSM),
-              fill = "#fc8d5925") +
-  geom_ribbon(data = ribbon_phi_eBird,
-              aes(ymin = phi_values+SD.phi, 
-                  ymax = phi_values-SD.phi),
-              fill = "#91bfdb25") +
-  geom_line(data = phi_data_plot |> 
-               filter(dataset != "eBird.OUSS.EGSS",
-                      group %in% c("phi.hat", "phi.hatSM")),
-            aes(color = group), linetype = "dashed") +
-  geom_point(data = phi_data_plot |> 
-               filter(dataset != "eBird.OUSS.EGSS",
-                      group %in% c("phi.hat", "phi.hatSM")),
-             aes(color = group, fill = group),
-             size = 2, shape = 21) +
-  labs(x = "Observation date",
-       y = expression(paste("Persistence (", phi,")")),
-       tag = expression(bold("(c)")),
-       title = "Simulation window: 500 weeks or ~10 years")  +
-  coord_cartesian(ylim = c(0, 1))+
-  scale_x_date(limits = c(snailkites.PP$observation.date[92],
+    geom_linerange(aes(ymin = phi_hat-phi_SD,
+                       ymax = phi_hat+phi_SD),
+                   alpha = 0.15) +
+    geom_linerange(aes(ymin = phi_1st,
+                       ymax = phi_3rd),
+                   alpha = 0.15, size = 1) +
+    geom_point(alpha = 0.65) +
+    scale_y_continuous(expand = c(0,0))+
+    scale_color_manual(values = c("#91bfdb95",
+                                "#fc8d5995"),
+                     labels = c(expression(italic(phi)[eBird]),
+                                expression(italic(phi)[SM])))+
+    scale_x_date(limits = c(snailkites.PP$observation.date[90],
                           max(snailkites.PP$observation.date)),
                breaks = seq(snailkites.PP$observation.date[90], 
                             max(snailkites.PP$observation.date), 
                             by = "12 months"), date_labels="%b\n%Y")+
-  scale_color_manual(values = c("#91bfdb95",
-                                "#fc8d5995"),
-                     labels = c(expression(italic(phi)[eBird]),
-                                expression(italic(phi)[SM])))+
-  scale_fill_manual(values = c("#91bfdb75",
-                                "#fc8d5975"),
-                     labels = c(expression(italic(phi)[eBird]),
-                                expression(italic(phi)[SM])))+
-  theme_classic() +
-  theme(legend.position = "none")
+  labs(x = "Observation date",
+       y = expression(paste("Persistence (",italic(varphi),")")),
+       tag = expression(bold("(c)")),
+       title = "Simulation window: 1250 weeks or ~25 years",
+       subtitle = "(five generations)")  +
+    theme_classic() +
+    theme(legend.title = element_blank(),
+        legend.position = "none",
+        legend.spacing.y = unit(-0.5, "cm"),
+        legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black"))+
+  guides(color = guide_legend(ncol=2),
+         shape = guide_legend(ncol=2))+
+    coord_cartesian(ylim = c(0,1))
 
 Figure4c
 ```
@@ -3495,14 +3472,14 @@ Figure4Ext <- grid.arrange(FigOUSS_A, FigOUSS_B, FigOUSS_C,
                           ncol = 1)
 
 #lets saved it with good proportions
-ggsave("results/Figure4_Extended_OUSS_EGSS_3-5-10yrsSimulated.pdf", 
-       plot = Figure4Ext, dpi = 300, width = 12, height = 9, units = "in")
+ggsave("results/Figure4_Extended_OUSS_EGSS_5-10-25yrsSimulated.pdf", 
+       plot = Figure4Ext, dpi = 300, width = 12, height = 10, units = "in")
 
-ggsave("results/Figure4_Extended_OUSS_EGSS_3-5-10yrsSimulated.png", 
-       plot = Figure4Ext, dpi = 300, width = 12, height = 9, units = "in")
+ggsave("results/Figure4_Extended_OUSS_EGSS_5-10-25yrsSimulated.png", 
+       plot = Figure4Ext, dpi = 300, width = 12, height = 10, units = "in")
 ```
 
-| ![Estimated local persistence probability ($\hat{\phi}$ +/- standard deviation) during ~5 years of monitoring (December 2019 to November 2024) after 50,000 population trajectories simulated for three timeframes (a-c). The shape of the points in the central column shows the model selected in each week of estimation (EGSS and OUSS, the preference of the latter by the model suggestion of density dependence). Model selection was conducted for the benchmark (right column), but all suggested density-independent dynamic (EGSS). Higher temporal resolution evident in eBird (n = 258) when compared with standardized monitored data (n = 32).](results/Figure4_Extended_OUSS_EGSS_3-5-10yrsSimulated.png){width=100%}<br>
+| ![Estimated local persistence probability ($\hat{\phi}$ +/- standard deviation) during ~5 years of monitoring (December 2019 to November 2024) after 50,000 population trajectories simulated for three timeframes (a-c). The shape of the points in the central column shows the model selected in each week of estimation (EGSS and OUSS, the preference of the latter by the model suggestion of density dependence). Model selection was conducted for the benchmark (right column), but all suggested density-independent dynamic (EGSS). Higher temporal resolution evident in eBird (n = 258) when compared with standardized monitored data (n = 32).](results/Figure4_Extended_OUSS_EGSS_5-10-25yrsSimulated.png){width=100%}<br>
 
 
 ```{r exporting Figure 4}
@@ -3511,18 +3488,18 @@ Figure4 <- grid.arrange(Figure4a, Figure4b, Figure4c,
                           ncol = 1)
 
 #lets saved it with good proportions
-ggsave("results/Figure4_PLocalPersi_3-5-10yrsSimulated.pdf", 
-       plot = Figure4, dpi = 300, width = 5.5, height = 8, units = "in")
+ggsave("results/Figure4_PLocalPersi_5-10-25yrsSimulated.pdf", 
+       plot = Figure4, dpi = 300, width = 5.5, height = 9, units = "in")
 
-ggsave("results/Figure4_PLocalPersi_3-5-10yrsSimulated.png", 
-       plot = Figure4, dpi = 300, width = 5.5, height = 8, units = "in")
+ggsave("results/Figure4_PLocalPersi_5-10-25yrsSimulated.png", 
+       plot = Figure4, dpi = 300, width = 5.5, height = 9, units = "in")
 ```
 
-| ![(*Same figure 4 in the main text*). Estimated local persistence probability ($\hat{\phi}$ +/- standard deviation) during ~5 years of monitoring (October 2019 to July 2024) after 50,000 population trajectories simulated for three timeframes (a-c). ](results/Figure4_PLocalPersi_3-5-10yrsSimulated.png){width=100%}<br>
+| ![(*Same figure 4 in the main text*). Estimated local persistence probability ($\hat{\phi}$ +/- standard deviation) during ~5 years of monitoring (December 2019 to November 2024) after 50,000 population trajectories simulated for three timeframes (a-c). ](results/Figure4_PLocalPersi_5-10-25yrsSimulated.png){width=100%}<br>
 
-## $\hat{\phi}$ Correlation and RMSE between datasets and simulated windows
+## $\hat{\varphi}$ Correlation and RMSE between datasets and simulated windows
 
-How correlated are the $\hat{\phi}$?
+How correlated are the $\hat{\varphi}$?
 
 ```{r phi correlation in three timeframes}
 correlations <- phi.eBird |> 
@@ -3556,7 +3533,7 @@ phi.eBird |>
   summarise(rmse = sqrt(mean(phi.hatSM - phi.hat)^2))
 ```
 
-Lower RMSE in $S_{500}$ indicates that, on average, close persistence estimates between the two datasets. We can plot the Absolute error difference for overlapping weeks of counts.
+Lower RMSE in $S_{1250}$ indicates that, on average, close persistence estimates between the two datasets. However, a good compromise between high correlation and low RMSE is provided by the window simulation of $S_{500}$. We can plot the Absolute error difference for overlapping weeks of counts.
 
 ```{r Persistence estimate and temporal absolute error, eval=TRUE}
 datesPP |>
@@ -3598,6 +3575,7 @@ datesPP |>
 In each iteration $i$, we save the four parameters of the models. We can see the timeseries of estimation of these parameters for the two datasets.
 
 ```{r timeseries of model parameters in two datasets, eval=TRUE} 
+
 phi_combined |>
   filter(dataset %in% c("eBird.EGSS", "SM")) |>
   mutate(N_0 = round(exp(x0)),
@@ -3624,9 +3602,13 @@ phi_combined |>
                         levels = c("Trend.parameter",
                                    "Env.noise",
                                    "Obs.noise",
-                                   "N_0")), 
+                                   "N_0"),
+                       labels = c("ln(lambda)",
+                                  "sigma^2",
+                                  "tau^2",
+                                  "N[0] == e^(X[0])")), 
                ncol = 2, 
-               scales = "free_y") +
+               scales = "free_y", labeller = label_parsed) +
     scale_color_manual(values = c("#91bfdb95",
                                   "#fc8d5995")) +
   labs(x = "Observation date",
@@ -3665,7 +3647,7 @@ phi.SM |>
             rmse.N_0 = sqrt(mean(init.pop.x - init.pop.y)^2))
 ```
 
-After converting back the $\hat{x_0}$ parameter to individuals ($N_0$), the estimation for the two datasets is the same ($\text{REMSE}_{\hat{x_0}} = 0$). Similarly, lower values of $\text{REMSE}_{\hat{\sigma}^2}=0.0014$ indicate similar environmental noise estimated for the two datasets in weeks of overlap in monitoring. The following parameter with similar estimation is the trend parameter $\text{REMSE}_{\hat{\ln{\lambda}}}=0.087$. Finally, the parameter of more difference between the datasets is the the observation noise error, $\text{REMSE}_{\hat{\tau}^2}=0.2007$. 
+After converting back the $\hat{x_0}$ parameter to individuals ($N_0$), the estimation for the two datasets is the same ($\text{RMSE}_{\hat{x_0}} = 0$). Similarly, lower values of $\text{RMSE}_{\hat{\sigma}^2}=0.0014$ indicate similar environmental noise estimated for the two datasets in weeks of overlap in monitoring. The following parameter with similar estimation is the trend parameter $\text{RMSE}_{\hat{\ln{\lambda}}}=0.0087$. Finally, the parameter of more difference between the datasets is the the observation noise error, $\text{RMSE}_{\hat{\tau}^2}=0.2007$. 
 
 We can, additionally, plot the Absolute error difference for overlapping weeks of counts for these four parameters.
 
@@ -3717,8 +3699,13 @@ phi.SM |>
                         levels = c("Trend",
                                    "Env.noise",
                                    "Obs.noise",
-                                   "N_0")), 
-             ncol = 2)+
+                                   "N_0"),
+                       labels = c("ln(lambda)",
+                                  "sigma^2",
+                                  "tau^2",
+                                  "N[0] == e^(X[0])")), 
+               ncol = 2, 
+               scales = "free_y", labeller = label_parsed)+
   labs(x = "Observation date",
        y = "Absolute error difference")+
   theme_classic()+
@@ -3726,244 +3713,6 @@ phi.SM |>
 ```
 
 Negative values in the absolute error difference indicate a higher estimate in the parameter using eBird data compared to using standardized monitoring.
-
-## Results for simulation window of \~3 years (150 weeks)
-
-```{r eBird extended figure 3yrs - a, eval=TRUE}
-
-#Extended figures
-
-phi_data_plot <- snailkites.PP |> 
-  left_join(phi.eBird |>
-              full_join(phi.SM) |>
-              filter(Timeframe == "150 weeks or ~3 years")) |>
-  ungroup() |>
-    mutate(phi.hat = phi.hat * coeff,
-           SD.phi = SD.phi * coeff,
-           phi.hatSM = phi.hatSM * coeffSM,
-           SD.phiSM = SD.phiSM * coeffSM) |> 
-  pivot_longer(cols = !c(cell, 
-                         year, 
-                         week, 
-                         Timeframe, 
-                         Time.t, 
-                         observation.date, 
-                         Model,
-                         ln.lambda,
-                         sigma.sqr,
-                         tau.sqr,
-                         x0),
-               names_to = "group",
-               values_to = "phi_values") |> 
-  drop_na(phi_values)
-
-phi_data_plot
-
-#Ribbon lo-hi phi (SD) for the two datasets
-ribbon_phi_eBird <- phi_data_plot |>
-  filter(group %in% c("phi.hat", "SD.phi")) |>
-  pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean}) |>
-  mutate(phi_values = phi.hat)
-
-ribbon_phi_SM <- phi_data_plot |>
-  filter(group %in% c("phi.hatSM", "SD.phiSM")) |>
-  pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean})|>
-  mutate(phi_values = phi.hatSM)
-
-  #figurea
-Fig3aExt <- ggplot(phi_data_plot |> 
-                  filter(group %in% c("phi.hat", "Observed.y")), 
-                aes(x = observation.date,
-                    y = phi_values,
-                    fill = group)) +
-  geom_vline(xintercept = snailkites.PP$observation.date[92], 
-             color = "gray", linetype = "dotted") +
-  geom_ribbon(data = ribbon_phi_eBird,
-              aes(ymin = phi.hat-SD.phi, ymax = phi.hat+SD.phi),
-              fill = "#91bfdb25") +
-#  geom_line(aes(color = group, linetype = group)) +
-  geom_segment(data = phi_data_plot |> 
-                  filter(group %in% c("Observed.y")),
-               aes(x = observation.date,
-                   xend = observation.date,
-                   y = 0,
-                   yend = phi_values),
-             color = "#4575b445",
-             fill = "#4575b445") +
-  geom_point(data = phi_data_plot |> 
-                  filter(group %in% c("Observed.y")),
-             color = "#4575b445", 
-             size = 0.5, 
-             fill = "#4575b445", 
-             shape = 21)+
-  geom_point(data = phi_data_plot |> 
-                  filter(group %in% c("phi.hat")) |>
-               drop_na(Model),
-              color = "black",
-             shape = 21, fill = "#91bfdb95") +
-  labs(x = "Observation date",
-       y = "Observed weekly high count",
-       tag = expression(bold("(a)")),
-       fill = "",
-       color = "",
-       linetype = "",
-       shape = "") +
-  scale_y_continuous(sec.axis = sec_axis(trans = ~./coeff, 
-                                         name = expression("eBird " * italic(phi)))) +
-  coord_cartesian(ylim = c(0, coeff))+
-  scale_x_date(limits = c(min(datesPP$observation.date),
-                          max(snailkites.PP$observation.date)),
-               breaks = seq(min(datesPP$observation.date),
-                          max(snailkites.PP$observation.date), 
-                            by = "12 months"), date_labels="%b\n%Y")+
-  scale_linetype_manual(values = c("solid",
-                                   "solid"),
-                     labels = c("eBird weekly high count", 
-                                expression("P(local persistence) = " * italic(phi))))+
-  scale_color_manual(values = c("#4575b475", 
-                                "#91bfdb75"),
-                     labels = c("eBird weekly high count", 
-                                expression("P(local persistence) = " * italic(phi)))) +
-  geom_hline(yintercept = N.critical, 
-             linetype = "dashed", 
-             color = "red")+
-    theme_classic()+
-  theme(legend.title = element_blank(),
-        legend.position = c(0.125,0.7),
-        legend.background = element_blank(),
-        legend.box.background = element_rect(colour = "black"),
-        axis.line.y.right = element_line(color = "#91bfdb"),
-        axis.ticks.y.right = element_line(color = "#91bfdb"))
-Fig3aExt
-
-#SM figure
-
-  #figurea
-Fig3bExt <- ggplot(phi_data_plot |> 
-                  filter(group %in% c("phi.hatSM", "abundance.monitored")), 
-                aes(x = observation.date,
-                    y = phi_values,
-                    fill = group)) +
-  geom_vline(xintercept = snailkites.PP$observation.date[92], 
-             color = "gray", linetype = "dashed") +
-  geom_ribbon(data = ribbon_phi_SM,
-              aes(ymin = phi.hatSM-SD.phiSM, 
-                  ymax = phi.hatSM+SD.phiSM),
-              fill = "#fc8d5925") +
-#  geom_line(aes(color = group, linetype = group)) +
-  geom_segment(data = phi_data_plot |> 
-                  filter(group %in% c("abundance.monitored")),
-               aes(x = observation.date,
-                   xend = observation.date,
-                   y = 0,
-                   yend = phi_values),
-             color = "#d7302745", 
-             fill = "#d7302745")+
-  geom_point(data = phi_data_plot |> 
-                  filter(group %in% c("abundance.monitored")),
-             color = "#d7302745", size = 0.5, fill = "#d7302745", 
-             shape = 21)+
-  geom_point(data = phi_data_plot |> 
-                  filter(group %in% c("phi.hatSM")) |>
-               drop_na(Model),
-             shape = 21, color = "black",
-             fill = "#fc8d5995") +
-  labs(x = "Observation date",
-       y = "Observed weekly high count",
-       tag = expression(bold("(b)")),
-       fill = "",
-       color = "",
-       linetype = "",
-       shape = "") +
-  scale_y_continuous(sec.axis = sec_axis(trans = ~./coeffSM, 
-                                         name = expression("Standardized Monitored " * italic(phi)))) +
-  coord_cartesian(ylim = c(0, coeffSM))+
-  scale_x_date(limits = c(min(datesPP$observation.date),
-                          max(snailkites.PP$observation.date)),
-               breaks = seq(min(datesPP$observation.date),
-                          max(snailkites.PP$observation.date), 
-                            by = "12 months"), date_labels="%b\n%Y")+
-  scale_linetype_manual(values = c("solid",
-                                   "solid"),
-                     labels = c("Standardized Monitored", 
-                                expression("P(local persistence) = " * italic(phi))))+
-  scale_color_manual(values = c("#d7302745", 
-                                "#fc8d5945"),
-                     labels = c("Standardized Monitored", 
-                                expression("P(local persistence) = " * italic(phi)))) +
-  geom_hline(yintercept = N.criticalSM, 
-             linetype = "dashed", color = "red")+
-  theme_classic() +
-  theme(legend.title = element_blank(),
-        legend.position = c(0.125,0.7),
-        legend.background = element_blank(),
-        legend.box.background = element_rect(colour = "black"),
-        axis.line.y.right = element_line(color = "#fc8d59"),
-        axis.ticks.y.right = element_line(color = "#fc8d59"))
-Fig3bExt
-
-
-#Performance comparison
-phidata <- phi.eBird |>
-  dplyr::select(Time.t, 
-                Timeframe,
-                phi.hat, SD.phi) |>
-              full_join(phi.SM |>
-                          dplyr::select(Time.t, 
-                                        Timeframe, 
-                                        phi.hatSM, SD.phiSM)) |>
-  filter(Timeframe == "150 weeks or ~3 years") 
-
-#relationship?
-lm(phi.hat~phi.hatSM, data = phidata)
-
-Fig3cExt <- ggplot(phidata)+
-    geom_abline(slope = 1)+
-    geom_pointrange(aes(x = phi.hatSM, y = phi.hat, 
-                        ymin = phi.hat-SD.phi, 
-                        ymax = phi.hat+SD.phi),
-                    shape = 23, fill = "gray", color = "gray",
-                    alpha = 0.25) +
-    geom_errorbarh(aes(x = phi.hatSM, y = phi.hat,
-                       xmax = phi.hatSM+SD.phiSM, 
-                       xmin = phi.hatSM-SD.phiSM, height = 0),
-                   color = "gray",
-                   alpha = 0.25)+
-    geom_point(aes(x = phi.hatSM, y = phi.hat),
-                    shape = 23, fill = "gray", 
-               color = "black", size = 2, alpha = 0.5)+
-    geom_text(x = 0.5, y = 0.05, 
-            label = lm_eqn(df = phidata,
-                           x = phidata$phi.hatSM, 
-                           y = phidata$phi.hat), 
-            parse = TRUE, color = "black")+
-      geom_smooth(aes(x=phi.hatSM, y=phi.hat),
-              method = "lm", fullrange=TRUE,
-              color = "black", se = F, linetype = "dashed", size = 1)+
-    scale_y_continuous(limits = c(0,1))+
-    scale_x_continuous(limits = c(0,1))+
-    labs(x = expression("Standardized Monitored "*italic(phi)),
-         y = expression("eBird "*italic(phi)),
-         tag = expression(bold("(c)")),
-         title = "150 weeks or ~3 years")+
-  coord_fixed()+
-  theme_classic()
-  
-#and combine in the figure
-Fig3ab <- grid.arrange(Fig3aExt, Fig3bExt, ncol = 1)
-
-Fig3 <- grid.arrange(Fig3ab, Fig3cExt, ncol = 2, widths = c(1.5,1))
-
-#It looks not good in the `Rmd`, but it is saved with good proportions
-ggsave("results/Figure3_timeseries_PLocalPersi_150weeks.pdf", 
-       plot = Fig3, dpi = 300, width = 16, height = 6, units = "in")
-
-ggsave("results/Figure3_timeseries_PLocalPersi150weeks.png", 
-       plot = Fig3, dpi = 300, width = 16, height = 6, units = "in")
-```
-
-| ![Time series of weekly high counts of Snail kites in Payne's Prairie wetland from eBird (a) and standardized monitoring surveys (b), with local persistence probability ($\phi$) +/- standard deviation estimated for each dataset after 50,000 population trajectories simulated. (c) Local persistence probability extimated from eBird data plotted against local persistence probability estimated from standardized monitored, with standard deviation. Estimation of $\phi$ from 50,000 trajectories in a timeframe of \~3 years (150 weeks). Solid black line is the line of identity, while dashed black line is linear regression (equation in gray).](results/Figure3_timeseries_PLocalPersi150weeks.png){width=100%}<br>
-
 
 ## Results for simulation window of \~5 years (250 weeks)
 
@@ -4042,7 +3791,7 @@ Fig3aExt <- ggplot(phi_data_plot |>
        linetype = "",
        shape = "") +
   scale_y_continuous(sec.axis = sec_axis(trans = ~./coeff, 
-                                         name = expression("eBird " * italic(phi)))) +
+                                         name = expression("eBird " * italic(varphi)))) +
   coord_cartesian(ylim = c(0, coeff))+
   scale_x_date(limits = c(min(datesPP$observation.date),
                           max(snailkites.PP$observation.date)),
@@ -4052,11 +3801,11 @@ Fig3aExt <- ggplot(phi_data_plot |>
   scale_linetype_manual(values = c("solid",
                                    "solid"),
                      labels = c("eBird weekly high count", 
-                                expression("P(local persistence) = " * italic(phi))))+
+                                expression("P(local persistence) = " * italic(varphi))))+
   scale_color_manual(values = c("#4575b445", 
                                 "#91bfdb45"),
                      labels = c("eBird weekly high count", 
-                                expression("P(local persistence) = " * italic(phi)))) +
+                                expression("P(local persistence) = " * italic(varphi)))) +
   geom_hline(yintercept = N.critical, linetype = "dashed", color = "red")+
   theme_classic() +
   theme(legend.title = element_blank(),
@@ -4104,7 +3853,7 @@ Fig3bExt <- ggplot(phi_data_plot |>
        linetype = "",
        shape = "") +
   scale_y_continuous(sec.axis = sec_axis(trans = ~./coeffSM, 
-                                         name = expression("Standardized Monitored " * italic(phi)))) +
+                                         name = expression("Standardized Monitored " * italic(varphi)))) +
   coord_cartesian(ylim = c(0, coeffSM))+
   scale_x_date(limits = c(min(datesPP$observation.date),
                           max(snailkites.PP$observation.date)),
@@ -4114,11 +3863,11 @@ Fig3bExt <- ggplot(phi_data_plot |>
   scale_linetype_manual(values = c("solid",
                                    "solid"),
                      labels = c("Standardized Monitored", 
-                                expression("P(local persistence) = " * italic(phi))))+
+                                expression("P(local persistence) = " * italic(varphi))))+
   scale_color_manual(values = c("#d7302745", 
                                 "#fc8d5945"),
                      labels = c("Standardized Monitored", 
-                                expression("P(local persistence) = " * italic(phi)))) +
+                                expression("P(local persistence) = " * italic(varphi)))) +
   geom_hline(yintercept = N.criticalSM, 
              linetype = "dashed", color = "red")+
   theme_classic() +
@@ -4170,8 +3919,8 @@ Fig3cExt <- ggplot(phidata)+
               color = "black", se = F, linetype = "dashed", size = 1)+
     scale_y_continuous(limits = c(0,1))+
     scale_x_continuous(limits = c(0,1))+
-    labs(x = expression("Standardized Monitored "*italic(phi)),
-         y = expression("eBird "*italic(phi)),
+    labs(x = expression("Standardized Monitored "*italic(varphi)),
+         y = expression("eBird "*italic(varphi)),
          tag = expression(bold("(c)")),
          title = "250 weeks or ~5 years")+
   coord_fixed()+
@@ -4195,7 +3944,7 @@ ggsave("results/Figure3_timeseries_PLocalPersi250weeks.png",
 | ![Time series of weekly high counts of Snail kites in Payne's Prairie wetland from eBird (a) and standardized monitoring surveys (b), with local persistence probability ($\phi$) +/- standard deviation estimated for each dataset after 50,000 population trajectories simulated. (c) Local persistence probability extimated from eBird data plotted against local persistence probability estimated from standardized monitored, with standard deviation. Estimation of $\phi$ from 50,000 trajectories in a timeframe of \~5 years (250 weeks). Solid black line is the line of identity, while dashed black line is linear regression (equation in gray).](results/Figure3_timeseries_PLocalPersi250weeks.png){width=100%}<br>
 
 
-## Results for simulation window of \~10 years (500 weeks) - higher RMSE
+## Results for simulation window of \~10 years (500 weeks) - higher RMSE and $\rho$
 
 ```{r eBird extended figure 10yrs, eval=TRUE}
 #Extended figures
@@ -4272,7 +4021,7 @@ Fig3aExt <- ggplot(phi_data_plot |>
        linetype = "",
        shape = "") +
   scale_y_continuous(sec.axis = sec_axis(trans = ~./coeff, 
-                                         name = expression("eBird " * italic(phi)))) +
+                                         name = expression("eBird " * italic(varphi)))) +
   coord_cartesian(ylim = c(0, coeff))+
   scale_x_date(limits = c(min(datesPP$observation.date),
                           max(snailkites.PP$observation.date)),
@@ -4282,11 +4031,11 @@ Fig3aExt <- ggplot(phi_data_plot |>
   scale_linetype_manual(values = c("solid",
                                    "solid"),
                      labels = c("eBird weekly high count", 
-                                expression("P(local persistence) = " * italic(phi))))+
+                                expression("P(local persistence) = " * italic(varphi))))+
   scale_color_manual(values = c("#4575b445", 
                                 "#91bfdb45"),
                      labels = c("eBird weekly high count", 
-                                expression("P(local persistence) = " * italic(phi)))) +
+                                expression("P(local persistence) = " * italic(varphi)))) +
   geom_hline(yintercept = N.critical, linetype = "dashed", color = "red")+
   theme_classic() +
   theme(legend.title = element_blank(),
@@ -4334,7 +4083,7 @@ Fig3bExt <- ggplot(phi_data_plot |>
        linetype = "",
        shape = "") +
   scale_y_continuous(sec.axis = sec_axis(trans = ~./coeffSM, 
-                                         name = expression("Standardized Monitored " * italic(phi)))) +
+                                         name = expression("Standardized Monitored " * italic(varphi)))) +
   coord_cartesian(ylim = c(0, coeffSM))+
   scale_x_date(limits = c(min(datesPP$observation.date),
                           max(snailkites.PP$observation.date)),
@@ -4344,11 +4093,11 @@ Fig3bExt <- ggplot(phi_data_plot |>
   scale_linetype_manual(values = c("solid",
                                    "solid"),
                      labels = c("Standardized Monitored", 
-                                expression("P(local persistence) = " * italic(phi))))+
+                                expression("P(local persistence) = " * italic(varphi))))+
   scale_color_manual(values = c("#d7302745", 
                                 "#fc8d5945"),
                      labels = c("Standardized Monitored", 
-                                expression("P(local persistence) = " * italic(phi)))) +
+                                expression("P(local persistence) = " * italic(varphi)))) +
   geom_hline(yintercept = N.criticalSM, 
              linetype = "dashed", color = "red")+
   theme_classic() +
@@ -4400,8 +4149,8 @@ Fig3cExt <- ggplot(phidata)+
               color = "black", se = F, linetype = "dashed", size = 1)+
     scale_y_continuous(limits = c(0,1))+
     scale_x_continuous(limits = c(0,1))+
-    labs(x = expression("Standardized Monitored "*italic(phi)),
-         y = expression("eBird "*italic(phi)),
+    labs(x = expression("Standardized Monitored "*italic(varphi)),
+         y = expression("eBird "*italic(varphi)),
          tag = expression(bold("(c)")),
          title = "500 weeks or ~10 years")+
   coord_fixed()+
@@ -4425,12 +4174,249 @@ ggsave("results/Figure3_timeseries_PLocalPersi500weeks.png",
 | ![Time series of weekly high counts of Snail kites in Payne's Prairie wetland from eBird (a) and standardized monitoring surveys (b), with local persistence probability ($\phi$) +/- standard deviation estimated for each dataset after 50,000 population trajectories simulated. (c) Local persistence probability extimated from eBird data plotted against local persistence probability estimated from standardized monitored, with standard deviation. Estimation of $\phi$ from 50,000 trajectories in a timeframe of \~10 years (500 weeks). Solid black line is the line of identity, while dashed black line is linear regression (equation in gray).](results/Figure3_timeseries_PLocalPersi500weeks.png){width=100%}<br>
 
 
+## Results for simulation window of \~25 years (1250 weeks)
+
+```{r eBird extended figure 25yrs - a, eval=TRUE}
+
+#Extended figures
+
+phi_data_plot <- snailkites.PP |> 
+  left_join(phi.eBird |>
+              full_join(phi.SM) |>
+              filter(Timeframe == "1250 weeks or ~25 years")) |>
+  ungroup() |>
+    mutate(phi.hat = phi.hat * coeff,
+           SD.phi = SD.phi * coeff,
+           phi.hatSM = phi.hatSM * coeffSM,
+           SD.phiSM = SD.phiSM * coeffSM) |> 
+  pivot_longer(cols = !c(cell, 
+                         year, 
+                         week, 
+                         Timeframe, 
+                         Time.t, 
+                         observation.date, 
+                         Model,
+                         ln.lambda,
+                         sigma.sqr,
+                         tau.sqr,
+                         x0),
+               names_to = "group",
+               values_to = "phi_values") |> 
+  drop_na(phi_values)
+
+phi_data_plot
+
+#Ribbon lo-hi phi (SD) for the two datasets
+ribbon_phi_eBird <- phi_data_plot |>
+  filter(group %in% c("phi.hat", "SD.phi")) |>
+  pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean}) |>
+  mutate(phi_values = phi.hat)
+
+ribbon_phi_SM <- phi_data_plot |>
+  filter(group %in% c("phi.hatSM", "SD.phiSM")) |>
+  pivot_wider(names_from = group, values_from = phi_values, values_fn = {mean})|>
+  mutate(phi_values = phi.hatSM)
+
+  #figurea
+Fig3aExt <- ggplot(phi_data_plot |> 
+                  filter(group %in% c("phi.hat", "Observed.y")), 
+                aes(x = observation.date,
+                    y = phi_values,
+                    fill = group)) +
+  geom_vline(xintercept = snailkites.PP$observation.date[92], 
+             color = "gray", linetype = "dotted") +
+  geom_ribbon(data = ribbon_phi_eBird,
+              aes(ymin = phi.hat-SD.phi, ymax = phi.hat+SD.phi),
+              fill = "#91bfdb25") +
+#  geom_line(aes(color = group, linetype = group)) +
+  geom_segment(data = phi_data_plot |> 
+                  filter(group %in% c("Observed.y")),
+               aes(x = observation.date,
+                   xend = observation.date,
+                   y = 0,
+                   yend = phi_values),
+             color = "#4575b445",
+             fill = "#4575b445") +
+  geom_point(data = phi_data_plot |> 
+                  filter(group %in% c("Observed.y")),
+             color = "#4575b445", 
+             size = 0.5, 
+             fill = "#4575b445", 
+             shape = 21)+
+  geom_point(data = phi_data_plot |> 
+                  filter(group %in% c("phi.hat")) |>
+               drop_na(Model),
+              color = "black",
+             shape = 21, fill = "#91bfdb95") +
+  labs(x = "Observation date",
+       y = "Observed weekly high count",
+       tag = expression(bold("(a)")),
+       fill = "",
+       color = "",
+       linetype = "",
+       shape = "") +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~./coeff, 
+                                         name = expression("eBird " * italic(varphi)))) +
+  coord_cartesian(ylim = c(0, coeff))+
+  scale_x_date(limits = c(min(datesPP$observation.date),
+                          max(snailkites.PP$observation.date)),
+               breaks = seq(min(datesPP$observation.date),
+                          max(snailkites.PP$observation.date), 
+                            by = "12 months"), date_labels="%b\n%Y")+
+  scale_linetype_manual(values = c("solid",
+                                   "solid"),
+                     labels = c("eBird weekly high count", 
+                                expression("P(local persistence) = " * italic(varphi))))+
+  scale_color_manual(values = c("#4575b475", 
+                                "#91bfdb75"),
+                     labels = c("eBird weekly high count", 
+                                expression("P(local persistence) = " * italic(varphi)))) +
+  geom_hline(yintercept = N.critical, 
+             linetype = "dashed", 
+             color = "red")+
+    theme_classic()+
+  theme(legend.title = element_blank(),
+        legend.position = c(0.125,0.7),
+        legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black"),
+        axis.line.y.right = element_line(color = "#91bfdb"),
+        axis.ticks.y.right = element_line(color = "#91bfdb"))
+Fig3aExt
+
+#SM figure
+
+  #figurea
+Fig3bExt <- ggplot(phi_data_plot |> 
+                  filter(group %in% c("phi.hatSM", "abundance.monitored")), 
+                aes(x = observation.date,
+                    y = phi_values,
+                    fill = group)) +
+  geom_vline(xintercept = snailkites.PP$observation.date[92], 
+             color = "gray", linetype = "dashed") +
+  geom_ribbon(data = ribbon_phi_SM,
+              aes(ymin = phi.hatSM-SD.phiSM, 
+                  ymax = phi.hatSM+SD.phiSM),
+              fill = "#fc8d5925") +
+#  geom_line(aes(color = group, linetype = group)) +
+  geom_segment(data = phi_data_plot |> 
+                  filter(group %in% c("abundance.monitored")),
+               aes(x = observation.date,
+                   xend = observation.date,
+                   y = 0,
+                   yend = phi_values),
+             color = "#d7302745", 
+             fill = "#d7302745")+
+  geom_point(data = phi_data_plot |> 
+                  filter(group %in% c("abundance.monitored")),
+             color = "#d7302745", size = 0.5, fill = "#d7302745", 
+             shape = 21)+
+  geom_point(data = phi_data_plot |> 
+                  filter(group %in% c("phi.hatSM")) |>
+               drop_na(Model),
+             shape = 21, color = "black",
+             fill = "#fc8d5995") +
+  labs(x = "Observation date",
+       y = "Observed weekly high count",
+       tag = expression(bold("(b)")),
+       fill = "",
+       color = "",
+       linetype = "",
+       shape = "") +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~./coeffSM, 
+                                         name = expression("Standardized Monitored " * italic(varphi)))) +
+  coord_cartesian(ylim = c(0, coeffSM))+
+  scale_x_date(limits = c(min(datesPP$observation.date),
+                          max(snailkites.PP$observation.date)),
+               breaks = seq(min(datesPP$observation.date),
+                          max(snailkites.PP$observation.date), 
+                            by = "12 months"), date_labels="%b\n%Y")+
+  scale_linetype_manual(values = c("solid",
+                                   "solid"),
+                     labels = c("Standardized Monitored", 
+                                expression("P(local persistence) = " * italic(varphi))))+
+  scale_color_manual(values = c("#d7302745", 
+                                "#fc8d5945"),
+                     labels = c("Standardized Monitored", 
+                                expression("P(local persistence) = " * italic(varphi)))) +
+  geom_hline(yintercept = N.criticalSM, 
+             linetype = "dashed", color = "red")+
+  theme_classic() +
+  theme(legend.title = element_blank(),
+        legend.position = c(0.125,0.7),
+        legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black"),
+        axis.line.y.right = element_line(color = "#fc8d59"),
+        axis.ticks.y.right = element_line(color = "#fc8d59"))
+Fig3bExt
+
+
+#Performance comparison
+phidata <- phi.eBird |>
+  dplyr::select(Time.t, 
+                Timeframe,
+                phi.hat, SD.phi) |>
+              full_join(phi.SM |>
+                          dplyr::select(Time.t, 
+                                        Timeframe, 
+                                        phi.hatSM, SD.phiSM)) |>
+  filter(Timeframe == "1250 weeks or ~25 years") 
+
+#relationship?
+lm(phi.hat~phi.hatSM, data = phidata)
+
+Fig3cExt <- ggplot(phidata)+
+    geom_abline(slope = 1)+
+    geom_pointrange(aes(x = phi.hatSM, y = phi.hat, 
+                        ymin = phi.hat-SD.phi, 
+                        ymax = phi.hat+SD.phi),
+                    shape = 23, fill = "gray", color = "gray",
+                    alpha = 0.25) +
+    geom_errorbarh(aes(x = phi.hatSM, y = phi.hat,
+                       xmax = phi.hatSM+SD.phiSM, 
+                       xmin = phi.hatSM-SD.phiSM, height = 0),
+                   color = "gray",
+                   alpha = 0.25)+
+    geom_point(aes(x = phi.hatSM, y = phi.hat),
+                    shape = 23, fill = "gray", 
+               color = "black", size = 2, alpha = 0.5)+
+    geom_text(x = 0.5, y = 0.05, 
+            label = lm_eqn(df = phidata,
+                           x = phidata$phi.hatSM, 
+                           y = phidata$phi.hat), 
+            parse = TRUE, color = "black")+
+      geom_smooth(aes(x=phi.hatSM, y=phi.hat),
+              method = "lm", fullrange=TRUE,
+              color = "black", se = F, linetype = "dashed", size = 1)+
+    scale_y_continuous(limits = c(0,1))+
+    scale_x_continuous(limits = c(0,1))+
+    labs(x = expression("Standardized Monitored "*italic(varphi)),
+         y = expression("eBird "*italic(varphi)),
+         tag = expression(bold("(c)")),
+         title = "1250 weeks or ~25 years")+
+  coord_fixed()+
+  theme_classic()
+  
+#and combine in the figure
+Fig3ab <- grid.arrange(Fig3aExt, Fig3bExt, ncol = 1)
+
+Fig3 <- grid.arrange(Fig3ab, Fig3cExt, ncol = 2, widths = c(1.5,1))
+
+#It looks not good in the `Rmd`, but it is saved with good proportions
+ggsave("results/Figure3_timeseries_PLocalPersi_150weeks.pdf", 
+       plot = Fig3, dpi = 300, width = 16, height = 6, units = "in")
+
+ggsave("results/Figure3_timeseries_PLocalPersi150weeks.png", 
+       plot = Fig3, dpi = 300, width = 16, height = 6, units = "in")
+```
+
+| ![Time series of weekly high counts of Snail kites in Payne's Prairie wetland from eBird (a) and standardized monitoring surveys (b), with local persistence probability ($\phi$) +/- standard deviation estimated for each dataset after 50,000 population trajectories simulated. (c) Local persistence probability extimated from eBird data plotted against local persistence probability estimated from standardized monitored, with standard deviation. Estimation of $\phi$ from 50,000 trajectories in a timeframe of \~25 years (1250 weeks). Solid black line is the line of identity, while dashed black line is linear regression (equation in gray).](results/Figure3_timeseries_PLocalPersi150weeks.png){width=100%}<br>
+
+
 # Sensitivity analysis
 
 ## Temporal thinning
 
-As a sensitivity analysis, we randomly removed 5% 
-of the data in eBird for each year, and projected under the simulation window of \~10 years (500 weeks). This process last ~13 hours.
+As a sensitivity analysis, we randomly removed 5% of the data in the eBird time series for each year, and projected under the simulation window of \~10 years (500 weeks). This process last ~13 hours.
 
 ```{r Sensitivity, eval=FALSE}
 #the original data
@@ -4526,17 +4512,19 @@ for (p in percentages) {
       #Expected value of probability of local persistence, and SD
       phi_mean <- mean(phi)
       phi_SD <- sqrt(var(phi))
-
-      phi_results[[i]] <- cbind(phi_mean,phi_SD)
+      phi_1st <- as.numeric(quantile(phi, probs = 0.25))
+      phi_3rd <- as.numeric(quantile(phi, probs = 0.75))
 
     #see advance by printing results
     print(cbind(c(p*100),
                 (phi_mean-phi_SD),
+                phi_1st,
                 phi_mean,
+                phi_3rd,
                 (phi_mean+phi_SD)))
 
     # Store results in lists for each percentage
-    phi_results[[i]] <- cbind(phi_mean,phi_SD)
+     phi_results[[i]] <- cbind(phi_1st, phi_mean, phi_3rd, phi_SD)
   }# i: each week of estimation
 
   # End timing for this percentage
@@ -4561,7 +4549,9 @@ Recover and save the results as data frame for comparison (with an iterative pro
 phiSD_df_sensitivity <- data.frame(
   Percentage = numeric(),
   Time.t = numeric(),
+  phi.1st = numeric(),
   phi.hat = numeric(),
+  phi.3rd = numeric(),
   SD.phi = numeric(),
   Time_Taken = character(),
   ln.lambda = numeric(),
@@ -4574,8 +4564,10 @@ phiSD_df_sensitivity <- data.frame(
 for (p in names(results)) {
   for (i in seq_along(results[[p]]$phi_sensitivity)) {
     # Extract data for this specific percentage p and end position = week i
-    phi_hat <- results[[p]]$phi_sensitivity[[i]][1]
-    SD_phi <- results[[p]]$phi_sensitivity[[i]][2]
+    phi.1st = results[[p]]$phi_sensitivity[[i]][1]
+    phi.hat = results[[p]]$phi_sensitivity[[i]][2]
+    phi.3rd = results[[p]]$phi_sensitivity[[i]][3]
+    SD.phi <- results[[p]]$phi_sensitivity[[i]][4]
     time_t <- results[[p]]$Time.t[i]
     time_taken <- results[[p]]$time_taken
     ln.lambda <- results[[p]]$parameters[[i]][1]
@@ -4587,8 +4579,10 @@ for (p in names(results)) {
     temp_df <- data.frame(
       Percentage = p,
       Time.t = time_t,
-      phi.hat = phi_hat,
-      SD.phi = SD_phi,
+      phi.1st = phi.1st,
+      phi.hat = phi.hat,
+      phi.3rd = phi.3rd,
+      SD.phi = SD.phi,
       Time_Taken = time_taken,
       Trend = ln.lambda,
       Env.noise = sigma.sqr,
@@ -4618,6 +4612,7 @@ With the data saved, we can compare how the reduction of data affect the inferen
 #Load data saved
   #data organized
   datesPP <- readRDS("data_tmp/datesTimeseriesPaynesPrairie.rds")
+  snailkites.PP <- readRDS("data_tmp/snailkitesPP.rds")
   #local persistence from Standardized Monitored
   phi.SM.500 <-readRDS("results/phi_hat_SD_SM_model_parameters.rds") |>
     left_join(datesPP) |>
@@ -4641,7 +4636,7 @@ With the data saved, we can compare how the reduction of data affect the inferen
 
 For example, using Pearson correlation coefficient
 
-```{r correlation in sensitivity}
+```{r correlation in sensitivity, warning=FALSE}
 #generate a dataframe to estimate correlation and make a figure
 cor_sen <- phiSD_df_sensitivity |>
   left_join(phi.SM.500 |>
@@ -4672,25 +4667,25 @@ cor_sen |>
 #labeller object for the `facet_wrap()`
 sensilab <- c(
   'All' = "Complete (n = 258; 32)",
-  'p95' = "95% dataset (n = 244; 31)",
-  'p90' = "90% dataset (n = 233; 31)",
-  'p85' = "85% dataset (n = 219; 26)",
-  'p80' = "80% dataset (n = 207; 28)",
-  'p75' = "75% dataset (n = 194; 22)",
-  'p70' = "70% dataset (n = 180; 18)",
-  'p65' = "65% dataset (n = 168; 26)",
-  'p60' = "60% dataset (n = 153; 20)",
-  'p55' = "55% dataset (n = 142; 20)",
-  'p50' = "50% dataset (n = 129; 12)",
-  'p45' = "45% dataset (n = 113; 13)",
-  'p40' = "40% dataset (n = 104; 7)",
-  'p35' = "35% dataset (n = 90; 8)",
-  'p30' = "30% dataset (n = 80; 5)",
-  'p25' = "25% dataset (n = 63; 12)",
-  'p20' = "20% dataset (n = 50; 5)",
-  'p15' = "15% dataset (n = 40; 2)",
-  'p10' = "10% dataset (n = 26; 3)",
-  'p5' = "5% dataset (n = 13; 1)"
+  'p95' = "95% dataset (n = 245; 31)",
+  'p90' = "90% dataset (n = 233; 30)",
+  'p85' = "85% dataset (n = 218; 29)",
+  'p80' = "80% dataset (n = 209; 26)",
+  'p75' = "75% dataset (n = 195; 24)",
+  'p70' = "70% dataset (n = 181; 24)",
+  'p65' = "65% dataset (n = 169; 25)",
+  'p60' = "60% dataset (n = 154; 20)",
+  'p55' = "55% dataset (n = 144; 20)",
+  'p50' = "50% dataset (n = 127; 14)",
+  'p45' = "45% dataset (n = 112; 14)",
+  'p40' = "40% dataset (n = 104; 12)",
+  'p35' = "35% dataset (n = 89; 11)",
+  'p30' = "30% dataset (n = 79; 12)",
+  'p25' = "25% dataset (n = 66; 7)",
+  'p20' = "20% dataset (n = 50; 4)",
+  'p15' = "15% dataset (n = 38; 4)",
+  'p10' = "10% dataset (n = 26; 2)",
+  'p5' = "5% dataset (n = 13; 2)"
 )
 
 Fig5Ext_a <- ggplot(cor_sen,
@@ -4709,14 +4704,17 @@ Fig5Ext_a <- ggplot(cor_sen,
   stat_cor(method = "pearson", 
          aes(label = paste("rho == ", ..r.., "*','~~p == ", ..p..)), 
          label.x = 0.25, label.y = 0.1, size = 2.5, parse = TRUE)+
-  labs(x = expression(phi[SM]),
-       y = expression(phi[eBird]),
-       title = expression("Persistence probability ("~phi~") comparison"))+
+  labs(x = expression(varphi[SM]),
+       y = expression(varphi[eBird]),
+       title = expression("Persistence probability ("~varphi~") comparison"))+
   scale_x_continuous(limits = c(0,1))+
   scale_y_continuous(limits = c(0,1))+
   coord_equal(ratio = 1)+
   theme_bw() +
-  theme(strip.background = element_blank())
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        panel.border = element_rect(colour = "black", fill = NA))
 
 Fig5Ext_a
 
@@ -4728,7 +4726,7 @@ ggsave("results/Figure5ext_a_Sensitivity_correlations.png",
        plot = Fig5Ext_a, dpi = 300, width = 9, height = 8, units = "in")
 ```
 
-| ![*Extended figure for Figure 5 in Main text*. Relationship of estimated local persistence probability ($\hat{\phi}$) from eBird (ordinate) and standardized monitoring (abscissa) under data reduction as part of a sensitivity analysis. The sequence of panels represent reduction from the complete eBird dataset (relationship of trends in Figure 4c) to different percentages of randomly subsampled data, from top-left to bottom-right ($n$ in parenthesis indicates the number of weeks from eBird reduced data and overlapping benchmark weeks). Local persistence probability was estimated using a ten-year moving window of population simulations from iteratively fitted population models. A linear model is fitted and deployed with a blue line, including confidence intervals in gray ribbon ($\rho$ below the equation shows Pearson correlation coefficient); the diagonal line is the line of identity (relation 1:1). See below specific trends of $\hat{\phi}$ across the time series. Although model accuracy varies with decreasing data and some overestimation of $\hat{\phi}$ from eBird data suggest less conservative estimation, the relationship with standardized monitoring data might stands with as little as 5% of the observed eBird weekly high counts (about three weeks per year).](results/Figure5ext_a_Sensitivity_correlations.png){width=100%}<br>
+| ![*Extended figure for Figure 5 in Main text*. Relationship of estimated local persistence probability ($\hat{\varphi}$) from eBird (ordinate) and standardized monitoring (abscissa) under data reduction as part of a sensitivity analysis. The sequence of panels represent reduction from the complete eBird dataset (relationship of trends in Figure 4c) to different percentages of randomly subsampled data, from top-left to bottom-right ($n$ in parenthesis indicates the number of weeks from eBird reduced data and overlapping benchmark weeks). Local persistence probability was estimated using a ten-year moving window of population simulations from iteratively fitted population models. A linear model is fitted and deployed with a blue line, including confidence intervals in gray ribbon ($\rho$ below the equation shows Pearson correlation coefficient); the diagonal line is the line of identity (relation 1:1). See below specific trends of $\hat{\varphi}$ across the time series. Although model accuracy varies with decreasing data and some overestimation of $\hat{\varphi}$ from eBird data suggest less conservative estimation, the relationship with standardized monitoring data might stands with as little as 5% of the observed eBird weekly high counts (about three weeks per year).](results/Figure5ext_a_Sensitivity_correlations.png){width=100%}<br>
 
 
 ### Visual inspection of trend after data reduction
@@ -4737,28 +4735,8 @@ And we can see the differences in a figure
 
 ```{r Figure 5 extended}
 
-Fig5Ext_b <- ggplot(phiSD_df_sensitivity, 
-                  aes(x = observation.date,
-                      y = phi.hat))+
-  geom_ribbon(aes(ymin = phi.hat-SD.phi, 
-                      ymax = phi.hat+SD.phi), 
-              fill = "#91bfdb25")+
-  geom_ribbon(data = phi.SM.500, 
-             aes(x = observation.date,
-                 y = phi.hatSM,
-                 ymin = phi.hatSM-SD.phiSM,
-                 ymax = phi.hatSM+SD.phiSM),
-             fill = "#fc8d5925")+
-  geom_line(color = "#91bfdb95")+
-  geom_point(size = 2, color = "#91bfdb95")+
-  geom_line(data = phi.SM.500, 
-             aes(x = observation.date,
-                 y = phi.hatSM),
-             color = "#fc8d5995")+
-  geom_point(data = phi.SM.500, 
-             aes(x = observation.date,
-                 y = phi.hatSM),
-             size = 2, color = "#fc8d5995")+
+Fig5Ext_b <- ggplot(data = phiSD_df_sensitivity,
+                    aes(x = observation.date))+
   facet_wrap(~factor(Percentage,
                      levels = c("All","p95","p90","p85","p80",
                                 "p75","p70","p65","p60","p55",
@@ -4766,19 +4744,50 @@ Fig5Ext_b <- ggplot(phiSD_df_sensitivity,
                                 "p25","p20","p15","p10","p5")),
              ncol = 5,
              labeller = as_labeller(sensilab))+
-  labs(x = "Observation date",
-       y = expression(phi))+
+      geom_vline(xintercept = snailkites.PP$observation.date[92], 
+             color = "gray", linetype = "dotted") +
+    geom_linerange(aes(ymin = phi.hat-SD.phi,
+                       ymax = phi.hat+SD.phi,
+                      y = phi.hat),
+                   alpha = 0.15, color = "#91bfdb95") +
+    geom_linerange(aes(ymin = phi.1st,
+                       ymax = phi.3rd,
+                      y = phi.hat),
+                   alpha = 0.15, size = 1, color = "#91bfdb95") +
+    geom_point(aes(y = phi.hat),
+               alpha = 0.65, color = "#91bfdb95") +
+    geom_linerange(data = phi.SM.500,
+                   aes(y = phi.hatSM,
+                       ymin = phi.hatSM-SD.phiSM,
+                       ymax = phi.hatSM+SD.phiSM),
+                   alpha = 0.15, color = "#fc8d5995") +
+    geom_linerange(data = phi.SM.500,
+                   aes(y = phi.hatSM, 
+                       ymin = phi.1stSM,
+                       ymax = phi.3rdSM),
+                   alpha = 0.15, size = 1, color = "#fc8d5995") +
+    geom_point(data = phi.SM.500,
+               aes(y = phi.hatSM),
+                alpha = 0.65, color = "#fc8d5995") +
+    scale_y_continuous(expand = c(0,0))+
+   labs(x = "Observation date",
+       y = expression(paste("Persistence (",italic(varphi),")")))  +
+    coord_cartesian(ylim = c(0,1))+
   theme_classic() +
-  theme(legend.position = "none")
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        panel.border = element_rect(colour = "black", fill = NA),
+        legend.position = "none")
 
 Fig5Ext_b
 
 #lets saved it with good proportions
 ggsave("results/Figure5ext_b_sensitivity_datareduction.pdf", 
-       plot = Fig5Ext_b, dpi = 300, width = 10, height = 7, units = "in")
+       plot = Fig5Ext_b, dpi = 300, width = 10, height = 6, units = "in")
 
 ggsave("results/Figure5ext_b_sensitivity_datareduction.png", 
-       plot = Fig5Ext_b, dpi = 300, width = 10, height = 7, units = "in")
+       plot = Fig5Ext_b, dpi = 300, width = 10, height = 6, units = "in")
 
 ```
 
@@ -4816,31 +4825,31 @@ phiSD_df_sensitivity |>
     theme_classic()
 ```
 
-All reduced datasets have low RMSE (<0.1), which indicates that, on average, the close persistence estimates between the Standardized Monitoring and eBird is maintained even with observation reduced data. We can plot the Absolute error difference for overlapping weeks of counts.
+Most reduced datasets have low RMSE (<0.1), which indicates that, on average, the close persistence estimates between the Standardized Monitoring and eBird is maintained even with observation reduced data. We can plot the Absolute error difference for overlapping weeks of counts.
 
 ```{r sensitivity temporal absolute error, eval=TRUE}
 #labeller object for the `facet_wrap()`
 sensilab2 <- c(
   'All' = "All (258; 32)",
-  'p95' = "95% (244; 31)",
-  'p90' = "90% (233; 31)",
-  'p85' = "85% (219; 26)",
-  'p80' = "80% (207; 28)",
-  'p75' = "75% (194; 22)",
-  'p70' = "70% (180; 18)",
-  'p65' = "65% (168; 26)",
-  'p60' = "60% (153; 20)",
-  'p55' = "55% (142; 20)",
-  'p50' = "50% (129; 12)",
-  'p45' = "45% (113; 13)",
-  'p40' = "40% (104; 7)",
-  'p35' = "35% (90; 8)",
-  'p30' = "30% (80; 5)",
-  'p25' = "25% (63; 12)",
-  'p20' = "20% (50; 5)",
-  'p15' = "15% (40; 2)",
-  'p10' = "10% (26; 3)",
-  'p5' = "5% (13; 1)"
+  'p95' = "95% (245; 31)",
+  'p90' = "90% (233; 30)",
+  'p85' = "85% (218; 29)",
+  'p80' = "80% (209; 26)",
+  'p75' = "75% (195; 24)",
+  'p70' = "70% (181; 24)",
+  'p65' = "65% (169; 25)",
+  'p60' = "60% (154; 20)",
+  'p55' = "55% (144; 20)",
+  'p50' = "50% (127; 14)",
+  'p45' = "45% (112; 14)",
+  'p40' = "40% (104; 12)",
+  'p35' = "35% (89; 11)",
+  'p30' = "30% (79; 12)",
+  'p25' = "25% (66; 7)",
+  'p20' = "20% (50; 4)",
+  'p15' = "15% (38; 4)",
+  'p10' = "10% (26; 2)",
+  'p5' = "5% (13; 2)"
 )
 
 datesPP |>
@@ -4884,125 +4893,6 @@ datesPP |>
 
 Again, more negative values indicate a higher estimate of $\phi$ for a week $i$ using eBird data when compared with standardized monitoring data across different observation reduced data sets.
 
-### Figure 5
-
-Data reduction in time series and correlation for some percentages: Complete (100%), 90%, 70%, 50%, 30%, and 10%.
-
-```{r Figure 5 with time series and correlations}
-
-# Load necessary libraries
-library(ggplot2)
-library(patchwork)
-
-# Define the sensilab object
-sensilab_fig5 <- c(
-  'All' = expression(bold("(a)")~"Complete (n = 258; 32)"),
-  'p90' = expression(bold("(b)")~"90% dataset (n = 233; 31)"),
-  'p70' = expression(bold("(c)")~"70% dataset (n = 180; 18)"),
-  'p50' = expression(bold("(d)")~"50% dataset (n = 129; 12)"),
-  'p30' = expression(bold("(e)")~"30% dataset (n = 80; 5)"),
-  'p10' = expression(bold("(f)")~"10% dataset (n = 26; 3)")
-)
-
-# Filter the data for the required percentages
-cor_sen_filtered <- cor_sen[cor_sen$Percentage %in% c("All", 
-                                                      "p90",
-                                                      "p70",
-                                                      "p50",
-                                                      "p30",
-                                                      "p10"), ]
-
-# we can use a function that creates the time series plots
-time_series_plot <- function(percentage) {
-  ggplot(cor_sen_filtered[cor_sen_filtered$Percentage == percentage, ],
-         aes(x = observation.date, 
-             y = phi.hat)) +
-    geom_ribbon(aes(ymin = phi.hat - SD.phi, 
-                    ymax = phi.hat + SD.phi), 
-                fill = "#91bfdb25") +
-    geom_ribbon(data = phi.SM.500,
-                aes(x = observation.date, 
-                    y = phi.hatSM, 
-                    ymin = phi.hatSM - SD.phiSM, 
-                    ymax = phi.hatSM + SD.phiSM),
-                fill = "#fc8d5925") +
-    geom_line(color = "#91bfdb95") +
-    geom_point(size = 2, color = "#91bfdb95") +
-    geom_line(data = phi.SM.500,
-              aes(x = observation.date, 
-                  y = phi.hatSM), 
-              color = "#fc8d5995") +
-    geom_point(data = phi.SM.500,
-               aes(x = observation.date, 
-                   y = phi.hatSM), 
-               size = 2, 
-               color = "#fc8d5995") +
-    scale_x_date(limits = c(datesPP$observation.date[99],
-                            max(datesPP$observation.date)),
-                 breaks = seq(datesPP$observation.date[99],
-                              max(datesPP$observation.date),
-                              by = "12 months"), 
-                 date_labels="%b\n%Y")+
-
-    labs(x = "Observation date", 
-         y = expression(paste("Persistence (", phi,")"))) +
-    theme_classic() +
-    theme(legend.position = "none", 
-          strip.background = element_blank()) +
-    ggtitle(sensilab_fig5[percentage])
-}
-
-# and another funtion that creates correlation plots
-correlation_plot <- function(percentage) {
-  ggplot(cor_sen_filtered[cor_sen_filtered$Percentage == percentage, ],
-         aes(x = phi.hatSM, 
-             y = phi.hat)) +
-    geom_abline(slope = 1) +
-    geom_point() +
-    geom_smooth(method = "lm", 
-                fullrange = TRUE) +
-    stat_regline_equation(label.x = 0.35, 
-                          label.y = 0.2, 
-                          size = 2.5) +
-    stat_cor(method = "pearson",
-             aes(label = paste("rho == ", ..r.., "*','~~p == ", ..p..)),
-             label.x = 0.25, 
-             label.y = 0.1, 
-             size = 2.5, 
-             parse = TRUE) +
-    labs(x = expression(paste("Persistence (", phi[SM],")")), 
-         y = expression(paste("Persistence (", phi[eBird],")"))) +
-    scale_x_continuous(limits = c(0, 1)) +
-    scale_y_continuous(limits = c(0, 1)) +
-    coord_equal(ratio = 1) +
-    theme_classic() +
-    theme(strip.background = element_blank(),
-          plot.margin = unit(c(0.25, 0.25, 0.25, 0.25), "cm"),
-          axis.title.x = element_text(margin = margin(t = 10)))
-}
-
-# Combine plots using patchwork
-Figure5 <- (
-  (time_series_plot("All") | correlation_plot("All")) /
-  (time_series_plot("p90") | correlation_plot("p90")) /
-  (time_series_plot("p70") | correlation_plot("p70")) /
-  (time_series_plot("p50") | correlation_plot("p50")) /
-  (time_series_plot("p30") | correlation_plot("p30")) /
-  (time_series_plot("p10") | correlation_plot("p10"))
-)
-
-#lets saved it with good proportions
-ggsave("results/Figure5_sensitivity_datareduction.pdf", 
-       plot = Figure5, dpi = 300, width = 6.5, height = 15, units = "in")
-
-ggsave("results/Figure5_sensitivity_datareduction.png", 
-       plot = Figure5, dpi = 300, width = 6.5, height = 15, units = "in")
-
-```
-
-| ![*Figure 5 in the Main text*. Data reduction as sensitivity analysis. Estimation of local persistence probability ($\hat{\phi}$) from standardized monitoring data (orange; $\hat{\phi}_{SM}$) is replicated in each comparison with estimation of local persistence probability from eBird (blue; $\hat{\phi}_{eBird}$) under data reduction. The sequence of panels represent reduction from the complete eBird dataset (same as Figure 4c) to different percentages of randomly sampled data (b-f; see extended figures in SI for the entire data reduction). The n in parenthesis indicates the number of weeks from eBird reduced data and overlapping benchmark weeks. While the left column shows temporal trend of $\hat{\phi}$, the right column shows the relationship of $\hat{\phi}_{eBird}$ (ordinate) and $\hat{\phi}_{SM}$ (abscissa). Local persistence probability was estimated using a ten-year moving window of population simulations from iteratively fitted population models. A linear model is fitted and deployed with a blue line in the right column, including confidence intervals in gray ribbon (ρ below the equation shows Pearson correlation coefficient); the diagonal line is the line of identity (1:1). Although model accuracy varies with decreasing data and some overestimation of $\hat{\phi}_{eBird}$ compared to $\hat{\phi}_{SM}$ suggests less conservative estimation, the trends are still similar even with as little as 5% observed eBird weekly high counts (about three weeks per year). ](results/Figure5_sensitivity_datareduction.png){width=100%}<br>
-
-
 ## List-level thinning
 
 Another approach to conduct a sensitivity analysis is thinning at the list level. We randomly removed 5% of the data in eBird for each year, and projected under the simulation window of \~10 years (500 weeks). This process last ~13 hours.
@@ -5015,7 +4905,7 @@ snailkites.week <- readRDS("data_tmp/SnailKiteCellsWeek.rds")
 ntraj =50000
 
 # Define percentages for sensitivity analysis
-percentages <- seq(0.90, 0.10, -0.10)
+percentages <- seq(0.95, 0.05, -0.05)
 
 # Initialize lists to store results of the sensitivity analysis
 results.S2 <- list()
@@ -5126,10 +5016,12 @@ Recover and save the results as data frame for comparison (with an iterative pro
 
 ```{r explorting sensitivity results - list level in df, eval=FALSE}
 # Initialize an empty data frame to store results
-phiSD_df_sensitivity2 <- data.frame(
+phiSD_df_sensitivity.S2 <- data.frame(
   Percentage = numeric(),
   Time.t = numeric(),
+  phi.1st = numeric(),
   phi.hat = numeric(),
+  phi.3rd = numeric(),
   SD.phi = numeric(),
   Time_Taken = character(),
   ln.lambda = numeric(),
@@ -5140,23 +5032,27 @@ phiSD_df_sensitivity2 <- data.frame(
 
 # Loop through each percentage in the results
 for (p in names(results.S2)) {
-  for (i in seq_along(results[[p]]$phi_sensitivity)) {
+  for (i in seq_along(results.S2[[p]]$phi_sensitivity)) {
     # Extract data for this specific percentage p and end position = week i
-    phi_hat <- results[[p]]$phi_sensitivity[[i]][1]
-    SD_phi <- results[[p]]$phi_sensitivity[[i]][2]
-    time_t <- results[[p]]$Time.t[i]
-    time_taken <- results[[p]]$time_taken
-    ln.lambda <- results[[p]]$parameters[[i]][1]
-    sigma.sqr <- results[[p]]$parameters[[i]][2]
-    tau.sqr <- results[[p]]$parameters[[i]][3]
-    x0 <- results[[p]]$parameters[[i]][4]
+    phi.1st = results.S2[[p]]$phi_sensitivity[[i]][1],
+    phi.hat = results.S2[[p]]$phi_sensitivity[[i]][2],
+    phi.3rd = results.S2[[p]]$phi_sensitivity[[i]][3],
+    SD.phi <- results.S2[[p]]$phi_sensitivity[[i]][4]
+    time_t <- results.S2[[p]]$Time.t[i]
+    time_taken <- results.S2[[p]]$time_taken
+    ln.lambda <- results.S2[[p]]$parameters[[i]][1]
+    sigma.sqr <- results.S2[[p]]$parameters[[i]][2]
+    tau.sqr <- results.S2[[p]]$parameters[[i]][3]
+    x0 <- results.S2[[p]]$parameters[[i]][4]
     
     # Combine the extracted data into a data frame
     temp_df <- data.frame(
       Percentage = p,
       Time.t = time_t,
-      phi.hat = phi_hat,
-      SD.phi = SD_phi,
+      phi.1st = phi.1st,
+      phi.hat = phi.hat,
+      phi.3rd = phi.3rd,
+      SD.phi = SD.phi,
       Time_Taken = time_taken,
       Trend = ln.lambda,
       Env.noise = sigma.sqr,
@@ -5165,20 +5061,20 @@ for (p in names(results.S2)) {
     )
     
     # Bind the temp_df to the final data frame
-    phiSD_df_sensitivity2 <- rbind(phiSD_df_sensitivity, temp_df)
+    phiSD_df_sensitivity.S2 <- rbind(phiSD_df_sensitivity.S2, temp_df)
   }
 }
 
-head(phiSD_df_sensitivity2)
-tail(phiSD_df_sensitivity2)
+head(phiSD_df_sensitivity.S2)
+tail(phiSD_df_sensitivity.S2)
 
 # Save the data frame to a file
-saveRDS(phiSD_df_sensitivity2, "results/phi_SD_Sensitivity2_model_parameters.rds")
+saveRDS(phiSD_df_sensitivity.S2, "results/phi_SD_SensitivityS2_model_parameters.rds")
 ```
 
 With the data saved, we can compare how the reduction of data affect the inference. 
 
-```{r load data phi and sensitivity2}
+```{r load data phi and sensitivity2, eval=TRUE}
 #Load data saved
   #data organized
   datesPP <- readRDS("data_tmp/datesTimeseriesPaynesPrairie.rds")
@@ -5191,7 +5087,7 @@ With the data saved, we can compare how the reduction of data affect the inferen
     left_join(datesPP) |>
     filter(Timeframe == "500 weeks or ~10 years")
   #data reduced
-  phiSD_df_sensitivity2 <- readRDS("results/phi_SD_Sensitivity2_model_parameters.rds") |>
+  phiSD_df_sensitivity.S2 <- readRDS("results/phi_SD_SensitivityS2_model_parameters.rds") |>
     left_join(datesPP) |>
     full_join(phi.eBird.500 |>
                 mutate(Percentage = "All",
@@ -5205,9 +5101,9 @@ With the data saved, we can compare how the reduction of data affect the inferen
 
 For example, using Pearson correlation coefficient
 
-```{r correlation in sensitivity2}
+```{r correlation in sensitivity2, warning=FALSE, eval=TRUE}
 #generate a dataframe to estimate correlation and make a figure
-cor_sen2 <- phiSD_df_sensitivity2 |>
+cor_sen2 <- phiSD_df_sensitivity.S2 |>
   left_join(phi.SM.500 |>
               mutate(x0 = round(exp(x0))) |>
               rename(Trend = ln.lambda,
@@ -5235,26 +5131,36 @@ cor_sen2 |>
 
 #labeller object for the `facet_wrap()`
 sensilab2 <- c(
-  'All' = "Complete (n = 258; 32)",
-  'p90' = "90% dataset (n = 233; 31)",
-  'p80' = "80% dataset (n = 207; 28)",
-  'p70' = "70% dataset (n = 180; 18)",
-  'p60' = "60% dataset (n = 153; 20)",
-  'p50' = "50% dataset (n = 129; 12)",
-  'p40' = "40% dataset (n = 104; 7)",
-  'p30' = "30% dataset (n = 80; 5)",
-  'p20' = "20% dataset (n = 50; 5)",
-  'p10' = "10% dataset (n = 26; 3)"
-)
+  'All' = "All (258; 32)",
+  'p95' = "95% (258; 32)",
+  'p90' = "90% (257; 32)",
+  'p85' = "85% (258; 32)",
+  'p80' = "80% (256; 32)",
+  'p75' = "75% (258; 32)",
+  'p70' = "70% (255; 32)",
+  'p65' = "65% (257; 32)",
+  'p60' = "60% (256; 32)",
+  'p55' = "55% (256; 32)",
+  'p50' = "50% (254; 31)",
+  'p45' = "45% (253; 32)",
+  'p40' = "40% (252; 32)",
+  'p35' = "35% (254; 32)",
+  'p30' = "30% (254; 32)",
+  'p25' = "25% (242; 32)",
+  'p20' = "20% (241; 32)",
+  'p15' = "15% (213; 30)",
+  'p10' = "10% (192; 29)",
+  'p5' = "5% (149; 24)"
+  )
 
 Fig5Ext_a2 <- ggplot(cor_sen2,
        aes(x = phi.hatSM, y = phi.hat))+
   geom_abline(slope = 1)+
   facet_wrap(~factor(Percentage,
-                     levels = c("All","p90","p80",
-                                "p70","p60",
-                                "p50","p40","p30",
-                                "p20","p10")),
+                     levels = c("All","p95","p90","p85","p80",
+                                "p75","p70","p65","p60","p55",
+                                "p50","p45","p40","p35","p30",
+                                "p25","p20","p15","p10","p5")),
              ncol = 5, 
              labeller = as_labeller(sensilab2))+
   geom_point()+
@@ -5263,14 +5169,17 @@ Fig5Ext_a2 <- ggplot(cor_sen2,
   stat_cor(method = "pearson", 
          aes(label = paste("rho == ", ..r.., "*','~~p == ", ..p..)), 
          label.x = 0.25, label.y = 0.1, size = 2.5, parse = TRUE)+
-  labs(x = expression(phi[SM]),
-       y = expression(phi[eBird]),
-       title = expression("Persistence probability ("~phi~") comparison"))+
+  labs(x = expression(varphi[SM]),
+       y = expression(varphi[eBird]),
+       title = expression("Persistence probability ("~varphi~") 2nd comparison"))+
   scale_x_continuous(limits = c(0,1))+
   scale_y_continuous(limits = c(0,1))+
   coord_equal(ratio = 1)+
   theme_bw() +
-  theme(strip.background = element_blank())
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        panel.border = element_rect(colour = "black", fill = NA))
 
 Fig5Ext_a2
 
@@ -5282,48 +5191,57 @@ ggsave("results/Figure5ext_a_Sensitivity2_correlations.png",
        plot = Fig5Ext_a2, dpi = 300, width = 9, height = 8, units = "in")
 ```
 
-| ![Second sensitivity analysis after review. Relationship of estimated local persistence probability ($\hat{\phi}$) from eBird (ordinate) and standardized monitoring (abscissa) under data reduction as part of a second sensitivity analysis. The sequence of panels represent reduction from the complete eBird dataset (relationship of trends in Figure 4c) to different percentages of randomly subsampled data at the list level, from top-left to bottom-right ($n$ in parenthesis indicates the number of weeks from eBird reduced data and overlapping benchmark weeks). Local persistence probability was estimated using a ten-year moving window of population simulations from iteratively fitted population models. A linear model is fitted and deployed with a blue line, including confidence intervals in gray ribbon ($\rho$ below the equation shows Pearson correlation coefficient); the diagonal line is the line of identity (relation 1:1). See below specific trends of $\hat{\phi}$ across the time series. Although model accuracy varies with decreasing data and some overestimation of $\hat{\phi}$ from eBird data suggest less conservative estimation, the relationship with standardized monitoring data might stands with as little as 5% of the eBird data.](results/Figure5ext_a_Sensitivity2_correlations.png){width=100%}<br>
+| ![Second sensitivity analysis after review. Relationship of estimated local persistence probability ($\hat{\varphi}$) from eBird (ordinate) and standardized monitoring (abscissa) under data reduction as part of a second sensitivity analysis. The sequence of panels represent reduction from the complete eBird dataset (relationship of trends in Figure 4c) to different percentages of randomly subsampled data at the list level, from top-left to bottom-right ($n$ in parenthesis indicates the number of weeks from eBird reduced data and overlapping benchmark weeks). Local persistence probability was estimated using a ten-year moving window of population simulations from iteratively fitted population models. A linear model is fitted and deployed with a blue line, including confidence intervals in gray ribbon ($\rho$ below the equation shows Pearson correlation coefficient); the diagonal line is the line of identity (relation 1:1). See below specific trends of $\hat{\varphi}$ across the time series. Although model accuracy varies with decreasing data and some overestimation of $\hat{\varphi}$ from eBird data suggest less conservative estimation, the relationship with standardized monitoring data might stands with as little as 5% of the eBird data.](results/Figure5ext_a_Sensitivity2_correlations.png){width=100%}<br>
 
 
 ### Visual inspection of trend after data reduction
 
 And we can see the differences in a figure
 
-```{r Figure sensitivity extended}
+```{r Figure sensitivity2 extended, eval=TRUE}
 
-Fig5Ext_b2 <- ggplot(phiSD_df_sensitivity2, 
-                  aes(x = observation.date,
-                      y = phi.hat))+
-  geom_ribbon(aes(ymin = phi.hat-SD.phi, 
-                      ymax = phi.hat+SD.phi), 
-              fill = "#91bfdb25")+
-  geom_ribbon(data = phi.SM.500, 
-             aes(x = observation.date,
-                 y = phi.hatSM,
-                 ymin = phi.hatSM-SD.phiSM,
-                 ymax = phi.hatSM+SD.phiSM),
-             fill = "#fc8d5925")+
-  geom_line(color = "#91bfdb95")+
-  geom_point(size = 2, color = "#91bfdb95")+
-  geom_line(data = phi.SM.500, 
-             aes(x = observation.date,
-                 y = phi.hatSM),
-             color = "#fc8d5995")+
-  geom_point(data = phi.SM.500, 
-             aes(x = observation.date,
-                 y = phi.hatSM),
-             size = 2, color = "#fc8d5995")+
+Fig5Ext_b2 <- ggplot(data = phiSD_df_sensitivity.S2,
+         aes(x = observation.date))+
   facet_wrap(~factor(Percentage,
-                     levels = c("All","p90","p80",
-                                "p70","p60",
-                                "p50","p40","p30",
-                                "p20","p10")),
+                     levels = c("All","p95","p90","p85","p80",
+                                "p75","p70","p65","p60","p55",
+                                "p50","p45","p40","p35","p30",
+                                "p25","p20","p15","p10","p5")),
              ncol = 5,
              labeller = as_labeller(sensilab2))+
-  labs(x = "Observation date",
-       y = expression(phi))+
+      geom_vline(xintercept = snailkites.PP$observation.date[92], 
+             color = "gray", linetype = "dotted") +
+    geom_linerange(aes(y = phi.hat, 
+                       ymin = phi.hat-SD.phi,
+                       ymax = phi.hat+SD.phi),
+                   alpha = 0.15, color = "#91bfdb95") +
+    geom_linerange(aes(y = phi.hat, 
+                       ymin = phi.1st,
+                       ymax = phi.3rd),
+                   alpha = 0.15, size = 1, color = "#91bfdb95") +
+    geom_point(aes(y = phi.hat),
+               alpha = 0.65, color = "#91bfdb95") +
+    geom_linerange(data = phi.SM.500,
+                   aes(ymin = phi.hatSM-SD.phiSM,
+                       ymax = phi.hatSM+SD.phiSM),
+                   alpha = 0.15, color = "#fc8d5995") +
+    geom_linerange(data = phi.SM.500,
+                   aes(ymin = phi.1stSM,
+                       ymax = phi.3rdSM),
+                   alpha = 0.15, size = 1, color = "#fc8d5995") +
+    geom_point(data = phi.SM.500,
+               aes(y = phi.hatSM),
+                alpha = 0.65, color = "#fc8d5995") +
+    scale_y_continuous(expand = c(0,0))+
+   labs(x = "Observation date",
+       y = expression(paste("Persistence (",italic(varphi),")")))  +
+    coord_cartesian(ylim = c(0,1))+
   theme_classic() +
-  theme(legend.position = "none")
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        panel.border = element_rect(colour = "black", fill = NA),
+        legend.position = "none")
 
 Fig5Ext_b2
 
@@ -5336,15 +5254,15 @@ ggsave("results/Figure5ext_b_sensitivity2_datareduction.png",
 
 ```
 
-| ![Second sensitivty analysis. Data reduction as sensitivity analysis. Estimation of local persistence probability ($\phi$) for standardized monitoring (orange) is replicated in each panel. Sequence of panels represent reduction from the complete dataset (same as Figure 4b *in the Main text*) to different percentages of randomly subsampled data, from top-left to bottom-right. Point shapes represent fitted model, the EGSS (circle) or OUSS (triangle). ](results/Figure5ext_b_sensitivity2_datareduction.png){width=100%}<br>
+| ![Second sensitivty analysis. Data reduction as sensitivity analysis. Estimation of local persistence probability ($\varphi$) for standardized monitoring (orange) is replicated in each panel. Sequence of panels represent reduction from the complete dataset (same as Figure 4b *in the Main text*) to different percentages of randomly subsampled data, from top-left to bottom-right. ](results/Figure5ext_b_sensitivity2_datareduction.png){width=100%}<br>
 
 
-### Root Mean Square Error for each list in the reduced dataset
+### Root Mean Square Error for each list in the (list) reduced dataset
 
 The trends are very similar and include high Pearson correlation ($>0.9$). We calculated the Root Mean Square Error (RMSE) for each percentage to see, on average, how the overlapping weeks differ from each other (lower values indicate close estimate). 
 
 ```{r sensitivity2 RMSE phiSM and phieBird, eval=TRUE}
-phiSD_df_sensitivity2 |> 
+phiSD_df_sensitivity.S2 |> 
   dplyr::select(Time.t,
          Percentage,
          phi.hat) |> 
@@ -5355,10 +5273,10 @@ phiSD_df_sensitivity2 |>
   drop_na(phi.hatSM) |>
   summarise(rmse = sqrt(mean(phi.hatSM - phi.hat)^2)) |> #
   ggplot(aes(x = factor(Percentage,
-                     levels = c("All","p90","p80",
-                                "p70","p60",
-                                "p50","p40","p30",
-                                "p20","p10")),
+                     levels = c("All","p95","p90","p85","p80",
+                                "p75","p70","p65","p60","p55",
+                                "p50","p45","p40","p35","p30",
+                                "p25","p20","p15","p10","p5")),
              y = rmse))+
     geom_segment(aes(y = 0, yend = rmse), 
                  color = "#909090")+
@@ -5372,33 +5290,10 @@ phiSD_df_sensitivity2 |>
 
 All reduced datasets have low RMSE (<0.1), which indicates that, on average, the close persistence estimates between the Standardized Monitoring and eBird is maintained even with observation reduced data. We can plot the Absolute error difference for overlapping weeks of counts.
 
-```{r sensitivity temporal absolute error, eval=TRUE}
-#labeller object for the `facet_wrap()`
-sensilab2 <- c(
-  'All' = "All (258; 32)",
-  'p95' = "95% (244; 31)",
-  'p90' = "90% (233; 31)",
-  'p85' = "85% (219; 26)",
-  'p80' = "80% (207; 28)",
-  'p75' = "75% (194; 22)",
-  'p70' = "70% (180; 18)",
-  'p65' = "65% (168; 26)",
-  'p60' = "60% (153; 20)",
-  'p55' = "55% (142; 20)",
-  'p50' = "50% (129; 12)",
-  'p45' = "45% (113; 13)",
-  'p40' = "40% (104; 7)",
-  'p35' = "35% (90; 8)",
-  'p30' = "30% (80; 5)",
-  'p25' = "25% (63; 12)",
-  'p20' = "20% (50; 5)",
-  'p15' = "15% (40; 2)",
-  'p10' = "10% (26; 3)",
-  'p5' = "5% (13; 1)"
-)
+```{r sensitivit2 temporal absolute error, eval=TRUE}
 
 datesPP |>
-  full_join(phiSD_df_sensitivity |> 
+  full_join(phiSD_df_sensitivity.S2 |> 
   dplyr::select(Time.t,
          Percentage,
          phi.hat)) |>
@@ -5438,8 +5333,242 @@ datesPP |>
 
 Again, more negative values indicate a higher estimate of $\phi$ for a week $i$ using eBird data when compared with standardized monitoring data across different observation reduced data sets.
 
+## Figure 5
 
-# Aditional example for other populations of snail kite and monthly $\hat{\phi}$
+Data reduction in time series and correlation for some percentages: 95%, 75%, 50%, 25%, 5%.
+
+```{r Figure 5 with time series and correlations, warning=FALSE}
+
+# Load necessary libraries
+library(ggplot2)
+library(patchwork)
+
+# Define the sensilab object
+sensilab_fig5 <- c(
+  'p95' = expression(bold("(a)")~"95% - temporal (n = 245; 31)"),
+  'p75' = expression(bold("(b)")~"75% - temporal (n = 195; 24)"),
+  'p50' = expression(bold("(c)")~"50% - temporal (n = 129; 12)"),
+  'p25' = expression(bold("(d)")~"25% - temporal (n = 66; 7)"),
+  'p5' = expression(bold("(e)")~"5% - temporal (n = 13; 2)")
+)
+
+# Filter the data for the required percentages
+cor_sen_filtered <- cor_sen[cor_sen$Percentage %in% c("p95",
+                                                      "p75",
+                                                      "p50",
+                                                      "p25",
+                                                      "p5"), ]
+
+# we can use a function that creates the time series plots
+time_series_plot <- function(percentage) {
+  ggplot(cor_sen_filtered[cor_sen_filtered$Percentage == percentage, ],
+         aes(x = observation.date)) +
+    geom_linerange(aes(ymin = phi.hat-SD.phi,
+                       ymax = phi.hat+SD.phi, 
+             y = phi.hat),
+                   alpha = 0.15, color = "#91bfdb95") +
+    geom_linerange(aes(ymin = phi.1st,
+                       ymax = phi.3rd, 
+             y = phi.hat),
+                   alpha = 0.15, size = 1, color = "#91bfdb95") +
+    geom_point(aes(y = phi.hat),
+               alpha = 0.65, color = "#91bfdb95") +
+    geom_linerange(data = phi.SM.500,
+                   aes(y = phi.hatSM,
+                       ymin = phi.hatSM-SD.phiSM,
+                       ymax = phi.hatSM+SD.phiSM),
+                   alpha = 0.15, color = "#fc8d5995") +
+    geom_linerange(data = phi.SM.500,
+                   aes(y = phi.hatSM, 
+                       ymin = phi.1stSM,
+                       ymax = phi.3rdSM),
+                   alpha = 0.15, size = 1, color = "#fc8d5995") +
+    geom_point(data = phi.SM.500,
+               aes(y = phi.hatSM),
+                alpha = 0.65, color = "#fc8d5995") +
+    scale_x_date(limits = c(datesPP$observation.date[99],
+                            max(datesPP$observation.date)),
+                 breaks = seq(datesPP$observation.date[99],
+                              max(datesPP$observation.date),
+                              by = "12 months"), 
+                 date_labels="%b\n%Y")+
+    labs(x = "Observation date", 
+         y = expression(paste("Persistence (", varphi,")"))) +
+    theme_classic() +
+    theme(legend.position = "none", 
+          strip.background = element_blank()) +
+    ggtitle(sensilab_fig5[percentage])
+}
+
+# and another funtion that creates correlation plots
+correlation_plot <- function(percentage) {
+  ggplot(cor_sen_filtered[cor_sen_filtered$Percentage == percentage, ],
+         aes(x = phi.hatSM, 
+             y = phi.hat)) +
+    geom_abline(slope = 1) +
+    geom_point() +
+    geom_smooth(method = "lm", 
+                fullrange = TRUE) +
+    stat_regline_equation(label.x = 0.35, 
+                          label.y = 0.2, 
+                          size = 2.5) +
+    stat_cor(method = "pearson",
+             aes(label = paste("rho == ", ..r.., "*','~~p == ", ..p..)),
+             label.x = 0.25, 
+             label.y = 0.1, 
+             size = 2.5, 
+             parse = TRUE) +
+    labs(x = expression(paste("Persistence (", varphi[SM],")")), 
+         y = expression(paste("Persistence (", varphi[eBird],")"))) +
+    scale_x_continuous(limits = c(0, 1)) +
+    scale_y_continuous(limits = c(0, 1)) +
+    coord_equal(ratio = 1) +
+    theme_bw() +
+    theme(strip.background = element_blank(),
+          plot.margin = unit(c(0.25, 0.25, 0.25, 0.25), "cm"),
+          axis.title.x = element_text(margin = margin(t = 10)),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_rect(colour = "black", fill = NA))
+}
+
+# Combine plots using patchwork
+Figure5 <- (
+  (time_series_plot("p95") | correlation_plot("p95")) /
+  (time_series_plot("p75") | correlation_plot("p75")) /
+  (time_series_plot("p50") | correlation_plot("p50")) /
+  (time_series_plot("p25") | correlation_plot("p25")) /
+  (time_series_plot("p5") | correlation_plot("p5"))
+)
+
+ggsave("results/Figure5_sensitivity_datareduction.pdf", 
+       plot = Figure5, dpi = 300, width = 6.5, height = 12.5, units = "in")
+ggsave("results/Figure5_sensitivity_datareduction.png", 
+       plot = Figure5, dpi = 300, width = 6.5, height = 12.5, units = "in")
+
+```
+
+```{r Figure 5 with time series and correlations2, warning=FALSE, eval=TRUE}
+
+# Define the second sensilab object
+sensilab_fig5b <- c(
+  'p95' = expression(bold("(f)")~"95% - sampling (n = 258; 32)"),
+  'p75' = expression(bold("(g)")~"75% - sampling (n = 258; 32)"),
+  'p50' = expression(bold("(h)")~"50% - sampling (n = 254; 31)"),
+  'p25' = expression(bold("(i)")~"25% - sampling (n = 242; 32)"),
+  'p5' = expression(bold("(j)")~"5% - sampling (n = 149; 24)")
+)
+
+# Filter the data for the required percentages
+cor_sen_filtered2 <- cor_sen2[cor_sen2$Percentage %in% c("p95",
+                                                      "p75",
+                                                      "p50",
+                                                      "p25",
+                                                      "p5"), ]
+
+# we can use a function that creates the time series plots
+time_series_plot2 <- function(percentage) {
+  ggplot(cor_sen_filtered2[cor_sen_filtered2$Percentage == percentage, ],
+         aes(x = observation.date)) +
+    geom_linerange(aes(ymin = phi.hat-SD.phi,
+                       ymax = phi.hat+SD.phi),
+                   alpha = 0.15, color = "#91bfdb95") +
+    geom_linerange(aes(ymin = phi.1st,
+                       ymax = phi.3rd),
+                   alpha = 0.15, size = 1, color = "#91bfdb95") +
+    geom_point(aes(y = phi.hat),
+               alpha = 0.65, color = "#91bfdb95") +
+    geom_linerange(data = phi.SM.500,
+                   aes(ymin = phi.hatSM-SD.phiSM,
+                       ymax = phi.hatSM+SD.phiSM),
+                   alpha = 0.15, color = "#fc8d5995") +
+    geom_linerange(data = phi.SM.500,
+                   aes(ymin = phi.1stSM,
+                       ymax = phi.3rdSM),
+                   alpha = 0.15, size = 1, color = "#fc8d5995") +
+    geom_point(data = phi.SM.500,
+               aes(y = phi.hatSM),
+                alpha = 0.65, color = "#fc8d5995") +
+    scale_x_date(limits = c(datesPP$observation.date[99],
+                            max(datesPP$observation.date)),
+                 breaks = seq(datesPP$observation.date[99],
+                              max(datesPP$observation.date),
+                              by = "12 months"), 
+                 date_labels="%b\n%Y")+
+    labs(x = "Observation date", 
+         y = expression(paste("Persistence (", varphi,")"))) +
+    theme_classic() +
+    theme(legend.position = "none", 
+          strip.background = element_blank()) +
+    ggtitle(sensilab_fig5b[percentage])
+}
+
+# and another funtion that creates correlation plots
+correlation_plot2 <- function(percentage) {
+  ggplot(cor_sen_filtered2[cor_sen_filtered2$Percentage == percentage, ],
+         aes(x = phi.hatSM, 
+             y = phi.hat)) +
+    geom_abline(slope = 1) +
+    geom_point() +
+    geom_smooth(method = "lm", 
+                fullrange = TRUE) +
+    stat_regline_equation(label.x = 0.35, 
+                          label.y = 0.2, 
+                          size = 2.5) +
+    stat_cor(method = "pearson",
+             aes(label = paste("rho == ", ..r.., "*','~~p == ", ..p..)),
+             label.x = 0.25, 
+             label.y = 0.1, 
+             size = 2.5, 
+             parse = TRUE) +
+    labs(x = expression(paste("Persistence (", varphi[SM],")")), 
+         y = expression(paste("Persistence (", varphi[eBird],")"))) +
+    scale_x_continuous(limits = c(0, 1)) +
+    scale_y_continuous(limits = c(0, 1)) +
+    coord_equal(ratio = 1) +
+    theme_classic() +
+    theme(strip.background = element_blank(),
+          plot.margin = unit(c(0.25, 0.25, 0.25, 0.25), "cm"),
+          axis.title.x = element_text(margin = margin(t = 10)),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_rect(colour = "black", fill = NA))
+}
+
+# Combine plots using patchwork
+Figure5b <- (
+  (time_series_plot2("p95") | correlation_plot2("p95")) /
+  (time_series_plot2("p75") | correlation_plot2("p75")) /
+  (time_series_plot2("p50") | correlation_plot2("p50")) /
+  (time_series_plot2("p25") | correlation_plot2("p25")) /
+  (time_series_plot2("p5") | correlation_plot2("p5"))
+)
+
+ggsave("results/Figure5_sensitivity2_datareduction.pdf", 
+       plot = Figure5b, dpi = 300, width = 6.5, height = 12.5, units = "in")
+ggsave("results/Figure5_sensitivity2_datareduction.png", 
+       plot = Figure5b, dpi = 300, width = 6.5, height = 12.5, units = "in")
+```
+
+Combine the figures of the two sensitivity analysis
+
+```{r eval=TRUE, warning=FALSE}
+
+Fig5All <- (Figure5 | Figure5b)
+
+#lets saved it with good proportions
+ggsave("results/Figure5_sensitivity_datareductionx2.pdf", 
+       plot = Fig5All, dpi = 300, width = 12, height = 15, units = "in")
+
+ggsave("results/Figure5_sensitivity_datareductionx2.png", 
+       plot = Fig5All, dpi = 300, width = 12, height = 15, units = "in")
+
+```
+
+| ![*Figure 5 in the Main text*. Data reduction as sensitivity analysis. Estimation of local persistence probability ($\hat{\varphi}$) from standardized monitoring data (orange; $\hat{\varphi}_{SM}$) is replicated in each comparison with estimation of local persistence probability from eBird (blue; $\hat{\varphi}_{eBird}$) under data reduction as temporal (left) and sampling (right) sensitivity analysis. The sequence of panels represent reduction from the complete eBird dataset (same as Figure 4c) to different percentages of randomly sampled data by temporal (a-e; see extended figures in SI) and list-level thinning (f-j; see extended figures in SI). The n in parenthesis indicates the number of weeks from eBird reduced data and overlapping benchmark weeks. Temporal trend of $\hat{\varphi}$ is accompanied with the relationship of $\hat{\varphi}_{eBird}$ (ordinate) and $\hat{\varphi}_{SM}$ (abscissa). A linear model of this relationship is fitted and deployed with a blue line, including confidence intervals in gray ribbon (ρ below the equation shows Pearson correlation coefficient); the diagonal line is the line of identity (1:1). Although model accuracy varies with decreasing data and some overestimation of $\hat{\varphi}_{eBird}$ compared to $\hat{\varphi}_{SM}$ suggests less conservative estimation, the trends are still similar even with as little as 5% eBird data (about three weeks or 75 lists per year). ](results/Figure5_sensitivity_datareductionx2.png){width=100%}<br>
+
+
+# Aditional example for other populations of snail kite and monthly $\hat{\varphi}$
 
 Let's explore our approach at a different temporal resolution (month) with four different populations: 
 
@@ -5464,56 +5593,56 @@ SnailKite |>
 
 #search for the cells ID with high counts and our interest location
 
-  # 2702324: Central Everglades1: 25.75671, -80.76607; 
-  # 2702325: Central Everglades2: 25.75906, -80.67722; 
-  # 2701596: Central Everglades3: 25.76546, -80.79460; 
+  # 2702385: Central Everglades1: 25.75671, -80.76607; 
+  # 2702386: Central Everglades2: 25.75906, -80.67722; 
+  # 2701656: Central Everglades3: 25.76546, -80.79460; 
 
-  # 2689945: West site of Lake Okeechobee1: 26.98044 -81.09575;
-  # 2690674: West site of Lake Okeechobee2: 26.99305 -81.06428;
-  # 2690677: East site of Lake Okeechobee: 27.12027 -80.67136;
+  # 2689989: West site of Lake Okeechobee1: 26.98044 -81.09575;
+  # 2690719: West site of Lake Okeechobee2: 26.99305 -81.06428;
+  # 2690722: East site of Lake Okeechobee: 27.12027 -80.67136;
 
-  # 2678295: Northeast Tohopeliga (Toho1): 28.23773 -81.36858;
-  # 2678296: East Lake Tohopeliga (Toho2): 28.26645 -81.27500;
-  # 2677567: Northcentral Tohopekaliga (Toho3): 28.28354, -81.39557;
+  # 2678323: Northeast Tohopeliga (Toho1): 28.23773 -81.36858;
+  # 2678324: East Lake Tohopeliga (Toho2): 28.26645 -81.27500;
+  # 2677594: Northcentral Tohopekaliga (Toho3): 28.28354, -81.39557;
 
-  # 2696492: Western Florida1 (Naples): 26.01485, -81.62422
-  # 2690668: Western Florida2 (Harns Marsh): 26.64986, -81.68672
-  # 2677561: Western Florida3 (Lakeland): 28.07533, -81.94395
+  # 2696545: Western Florida1 (Naples): 26.01485, -81.62422
+  # 2690713: Western Florida2 (Harns Marsh): 26.64986, -81.68672
+  # 2677588: Western Florida3 (Lakeland): 28.07533, -81.94395
 
 sk.others <- SnailKite |>
   filter(cell %in% c(#Central Everglades
-                      "2702324","2702325", "2701596", 
+                      "2702385","2702386", "2701656", 
                      # Lake Okeechobee
-                      "2689945", "2690674","2690677", 
+                      "2689989", "2690719","2690722", 
                      # Lake Tohopeliga
-                      "2678295","2678296","2677567",
+                      "2678323","2678324","2677594",
                      # Western Florida
-                      "2696492","2690668","2677561")) |> 
-  mutate(population = case_when(cell == "2702324"~"Everglades",
-                                cell == "2702325"~"Everglades",
-                                cell == "2701596"~"Everglades",
-                                cell == "2689945"~"Okeechobee",
-                                cell == "2690674"~"Okeechobee",
-                                cell == "2690677"~"Okeechobee",
-                                cell == "2678295"~"Tohopekaliga",
-                                cell == "2678296"~"Tohopekaliga",
-                                cell == "2677567"~"Tohopekaliga",
-                                cell == "2696492"~"Western Florida",
-                                cell == "2690668"~"Western Florida",
-                                cell == "2677561"~"Western Florida"),
+                      "2696545","2690713","2677588")) |> 
+  mutate(population = case_when(cell == "2702385"~"Everglades",
+                                cell == "2702386"~"Everglades",
+                                cell == "2701656"~"Everglades",
+                                cell == "2689989"~"Okeechobee",
+                                cell == "2690719"~"Okeechobee",
+                                cell == "2690722"~"Okeechobee",
+                                cell == "2678323"~"Tohopekaliga",
+                                cell == "2678324"~"Tohopekaliga",
+                                cell == "2677594"~"Tohopekaliga",
+                                cell == "2696545"~"Western Florida",
+                                cell == "2690713"~"Western Florida",
+                                cell == "2677588"~"Western Florida"),
          seqnum = cell,
-         cell = case_when(cell == "2702324"~"Everglades 1",
-                                cell == "2702325"~"Everglades 2",
-                                cell == "2701596"~"Everglades 3",
-                                cell == "2689945"~"Okeechobee W1",
-                                cell == "2690674"~"Okeechobee W2",
-                                cell == "2690677"~"Okeechobee E",
-                                cell == "2678295"~"Toho - NE",
-                                cell == "2678296"~"Toho - East Lake Toho",
-                                cell == "2677567"~"Toho - NC",
-                                cell == "2696492"~"WF - Naples",
-                                cell == "2690668"~"WF - Harns Marsh",
-                                cell == "2677561"~"WF - Lakeland"))
+         cell = case_when(cell == "2702385"~"Everglades 1",
+                                cell == "2702386"~"Everglades 2",
+                                cell == "2701656"~"Everglades 3",
+                                cell == "2689989"~"Okeechobee W1",
+                                cell == "2690719"~"Okeechobee W2",
+                                cell == "2690722"~"Okeechobee E",
+                                cell == "2678323"~"Toho - NE",
+                                cell == "2678324"~"Toho - East Lake Toho",
+                                cell == "2677594"~"Toho - NC",
+                                cell == "2696545"~"WF - Naples",
+                                cell == "2690713"~"WF - Harns Marsh",
+                                cell == "2677588"~"WF - Lakeland"))
 
 sk.others.ts <- sk.others |>
   group_by(cell) |>
@@ -5879,3 +6008,5 @@ phiSD_df_pops |>
 ```
 
 Although the lower threshold ($N_{c}^{eBird}=2$) provide higher overall values of persistence estimates, the trend for the different supbopulations stands: concerning decline and lower persistence in the Everglades subpopulation; some stable dynamics in the Lake Okeechobee; and, increase in persistence for the subpopulation in Lake Tohopekaliga. Further extension of our approach could help to evaluate other subpopulations (e.g., Cape Coral channels) and include them in robust systematic monitoring.
+
+| ![Graphical abstract for Monitoring population extinction risk with community science data](results/Graphical Abstract.png){width=100%}<br>
