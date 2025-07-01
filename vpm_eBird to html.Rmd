@@ -1,6 +1,6 @@
 ---
 title: '**Supporting Information**'
-author: "Authors...(removed for peer review in Journal of Applied Ecology)"
+author: "Orlando Acevedo-Charry, José M. Ponciano, Caroline L. Poli, Brian M. Jeffery, Robert J. Fletcher Jr., María Ángela Echeverry-Galvis, Bette A. Loiselle, Scott K. Robinson, and Miguel A. Acevedo"
 date: "`r format(Sys.time(), '%d %B %Y')`"
 output:
   bookdown::html_document2:
@@ -1392,13 +1392,13 @@ snailkites.PP |>
   drop_na(Abundance) |>
   ggplot(aes(x = observation.date, 
              y = Abundance, 
-             fill = group))+
+             fill = group, 
+             shape = group))+
     geom_segment(aes(y = 0, 
                      yend = Abundance,
                      color = group), 
                  alpha = 0.5) +
-    geom_point(shape = 21, 
-               color = "black", 
+    geom_point(color = "black", 
                alpha = 0.6)+
     geom_vline(xintercept = snailkites.PP$observation.date[91], 
              color = "gray", linetype = "dotted") +
@@ -1412,6 +1412,9 @@ snailkites.PP |>
        fill = "",
        color = "",
        shape = "")+
+  scale_shape_manual(values = c(24, 21),
+                       labels = c("Standardized Monitored",
+                                  "eBird observations")) +
     scale_color_manual(values = c("#fc8d5995", 
                                   "#91bfdb95"),
                        labels = c("Standardized Monitored",
@@ -1421,7 +1424,7 @@ snailkites.PP |>
                        labels = c("Standardized Monitored",
                                   "eBird observations"))+
   theme_classic()+
-    theme(legend.position = c(0.2, 0.8))
+    theme(legend.position = c(0.15, 0.8))
 ```
 <br>
 
@@ -1632,7 +1635,8 @@ sk.Estimated_figA <- sk.Estimated |>
 
 
 FigS3a <-
-  ggplot(data = sk.Estimated_figA, aes(x = observation.date, 
+  ggplot(data = sk.Estimated_figA, 
+         aes(x = observation.date, 
              y = Abundance))+
   geom_vline(xintercept = snailkites.PP$observation.date[92], 
              color = "gray", linetype = "dotted") +
@@ -1641,18 +1645,30 @@ FigS3a <-
                                       "eBird.Observed")), 
              aes(fill = factor(group,
                            levels = c("abundance.monitored",
+                                      "eBird.Observed")),
+                 shape = factor(group,
+                           levels = c("abundance.monitored",
                                       "eBird.Observed"))),
-               color = "black", size = 2, shape = 21)+
+               size = 2)+
+     scale_fill_manual(values = c("#fc8d5999","#91bfdb99"),
+                       labels = c("Standardized Monitoring (SM)", 
+                                  "eBird"))+
+    scale_shape_manual(values = c(24,21),
+                       labels = c("Standardized Monitoring (SM)", 
+                                  "eBird"))+
     geom_line(data = sk.Estimated_figA |>
                 filter(group %in% c("Estimated_SKProj_EGSS",
                                   "Estimated_eBird_EGSS")),
               aes(color = factor(group,
                            levels = c("Estimated_SKProj_EGSS",
                                       "Estimated_eBird_EGSS"))),
-              linetype = "dashed", size = 1) +
+              linetype = "solid", size = 1) +
+   scale_color_manual(values = c("#FE996B", "#4575b4"),
+                       labels = c("Predicted trajectory (SM - EGSS)", 
+                                  "Predicted trajectory (eBird - EGSS)"))+
     labs(x = "Observation date",
        y = "Observed/predicted weekly high count",
-       tag = expression(bold("(a)")),
+#       tag = expression(bold("(a)")),
        fill = "",
        color = "",
        shape = "",
@@ -1661,12 +1677,6 @@ FigS3a <-
   scale_x_date(breaks = seq(as.Date("2018-01-01"), 
                             max(sk.Estimated$observation.date), 
                             by = "3 months"), date_labels="%b \n%Y")+
-    scale_color_manual(values = c("#FE996B", "#4575b4"),
-                       labels = c("Predicted trajectory (SM - EGSS)", 
-                                  "Predicted trajectory (eBird - EGSS)"))+
-    scale_fill_manual(values = c("#fc8d5999","#91bfdb99"),
-                       labels = c("Standardized Monitoring (SM)", 
-                                  "eBird"))+
    theme_classic()+
     geom_segment(aes(x = snailkites.PP$observation.date[92],
                      xend = snailkites.PP$observation.date[96],
@@ -1702,13 +1712,14 @@ lm(Estimated_SKProj_EGSS~abundance.monitored, data = sk.Estimated)
 
 FigS3b <- ggplot(sk.Estimated)+
   geom_abline(slope = 1)+
-  geom_smooth(aes(x=abundance.monitored, y=Estimated_SKProj_EGSS),
+  geom_smooth(aes(x=abundance.monitored, 
+                  y=Estimated_SKProj_EGSS),
               method = "lm", color = "#FE996B99", 
-              se = F, fill = "#fc8d5905", linetype = "solid")+
+              se = F, fill = "#fc8d5905", linetype = "dashed")+
   geom_line(aes(x=abundance.monitored, y=Estimated_SKProj_EGSS), 
-             color = "#FE996B", linetype = "dashed", size = 1)+
-  geom_point(aes(x=abundance.monitored, y=Estimated_SKProj_EGSS), 
-             color = "black", fill = "#FE996B", shape = 24, size = 2)+
+             color = "#FE996B", linetype = "solid", size = 1)+
+#  geom_point(aes(x=abundance.monitored, y=Estimated_SKProj_EGSS), 
+#             color = "black", fill = "#FE996B", shape = 24, size = 2)+
 # geom_text(x = 25, y = 50, 
 #            label = lm_eqn(df = sk.Estimated,
 #                           x = sk.Estimated$abundance.monitored, 
@@ -1716,11 +1727,11 @@ FigS3b <- ggplot(sk.Estimated)+
 #            parse = TRUE, color = "#fc8d59")+
   geom_smooth(aes(x=abundance.monitored, y=Estimated_eBird_EGSS),
               method = "lm", color = "#4575b499", 
-              se = F, fill = "#91bfdb05", linetype = "solid")+
+              se = F, fill = "#91bfdb05", linetype = "dashed")+
   geom_line(aes(x=abundance.monitored, y=Estimated_eBird_EGSS), 
-             color = "#4575b4", linetype = "dashed", size = 1)+
-  geom_point(aes(x=abundance.monitored, y=Estimated_eBird_EGSS), 
-             color = "black", fill = "#4575b4", shape = 24, size = 2)+
+             color = "#4575b4", linetype = "solid", size = 1)+
+#  geom_point(aes(x=abundance.monitored, y=Estimated_eBird_EGSS), 
+#             color = "black", fill = "#4575b4", shape = 24, size = 2)+
 #  geom_text(x = 50, y = 0, 
 #            label = lm_eqn(df = sk.Estimated,
 #                           x = sk.Estimated$abundance.monitored, 
@@ -1742,10 +1753,10 @@ It looks not good in the `Rmd` file, but it is saved with good proportions
 
 ```{r exporting figure 3, eval=TRUE}
 ggsave("results/Figure3ab_EstimatedTrajectory2initdays.pdf", 
-       plot = FigS3, dpi = 300, width = 10, height = 4.2, units = "in")
+       plot = FigS3a, dpi = 300, width = 8, height = 4.2, units = "in")
 
 ggsave("results/Figure3ab_EstimatedTrajectory2initdays.png", 
-       plot = FigS3, dpi = 300, width = 10, height = 4.2, units = "in")
+       plot = FigS3a, dpi = 300, width = 8, height = 4.2, units = "in")
 ```
 
 | ![(Same figure 3 in the main text) Weekly predicted (triangles) and observed (circles) high counts of snail kites from standardized monitoring (orange) and eBird (blue). Predicted values correspond to Exponential Growth State-Space (EGSS) models fitted for the two datasets during initial population dynamic in north-central Florida (a; from week 1, January 2018 to week 101, December 2019). (b) The predicted trajectory of standardized monitoring data matched closely the weekly high counts data (intercept: $-0.63±1.08$ SE; slope: $0.93±0.03$), while the predicted trajectory from eBird data was far lower than the identity (intercept: $2.34±0.79$; slope: $0.07±0.02$) compared with observed standardized monitored high counts; solid black line in (b) is the identity (1:1 relationship). Still, the estimated population parameters were very similar between the two datasets, with the main difference being higher observation noise in the model fitted with eBird data compared to the model fitted with standardized monitored.](results/Figure3ab_EstimatedTrajectory2initdays.png){width=100%}
@@ -3196,7 +3207,9 @@ Figure4a <- ggplot(data = phi_data_plot |>
          filter(dataset != "eBird.OUSS.EGSS"),
        aes(x = observation.date, 
            y = phi_hat, 
-           color = original.dataset)) +
+           fill = original.dataset, 
+           color = original.dataset, 
+           shape = original.dataset)) +
     geom_vline(xintercept = snailkites.PP$observation.date[92], 
              color = "gray", linetype = "dotted") +
     geom_linerange(aes(ymin = phi_hat-phi_SD,
@@ -3207,10 +3220,17 @@ Figure4a <- ggplot(data = phi_data_plot |>
                    alpha = 0.15, size = 1) +
     geom_point(alpha = 0.65) +
     scale_y_continuous(expand = c(0,0))+
+    scale_shape_manual(values = c(21,24),
+                     labels = c(expression(italic(varphi)[eBird]),
+                                expression(italic(varphi)[SM]))) +
+    scale_fill_manual(values = c("#91bfdb95",
+                                "#fc8d5995"),
+                     labels = c(expression(italic(varphi)[eBird]),
+                                expression(italic(varphi)[SM]))) +
     scale_color_manual(values = c("#91bfdb95",
                                 "#fc8d5995"),
                      labels = c(expression(italic(varphi)[eBird]),
-                                expression(italic(varphi)[SM])))+
+                                expression(italic(varphi)[SM]))) +
     scale_x_date(limits = c(snailkites.PP$observation.date[90],
                           max(snailkites.PP$observation.date)),
                breaks = seq(snailkites.PP$observation.date[90], 
@@ -3311,7 +3331,9 @@ Figure4b <- ggplot(data = phi_data_plot |>
          filter(dataset != "eBird.OUSS.EGSS"),
        aes(x = observation.date, 
            y = phi_hat, 
-           color = original.dataset)) +
+           color = original.dataset, 
+           fill = original.dataset, 
+           shape = original.dataset)) +
     geom_vline(xintercept = snailkites.PP$observation.date[92], 
              color = "gray", linetype = "dotted") +
     geom_linerange(aes(ymin = phi_hat-phi_SD,
@@ -3322,7 +3344,14 @@ Figure4b <- ggplot(data = phi_data_plot |>
                    alpha = 0.15, size = 1) +
     geom_point(alpha = 0.65) +
     scale_y_continuous(expand = c(0,0))+
+    scale_shape_manual(values = c(21,24),
+                     labels = c(expression(italic(phi)[eBird]),
+                                expression(italic(phi)[SM])))+
     scale_color_manual(values = c("#91bfdb95",
+                                "#fc8d5995"),
+                     labels = c(expression(italic(phi)[eBird]),
+                                expression(italic(phi)[SM])))+
+    scale_fill_manual(values = c("#91bfdb95",
                                 "#fc8d5995"),
                      labels = c(expression(italic(phi)[eBird]),
                                 expression(italic(phi)[SM])))+
@@ -3426,7 +3455,9 @@ Figure4c <- ggplot(data = phi_data_plot |>
          filter(dataset != "eBird.OUSS.EGSS"),
        aes(x = observation.date, 
            y = phi_hat, 
-           color = original.dataset)) +
+           color = original.dataset, 
+           fill = original.dataset, 
+           shape = original.dataset)) +
     geom_vline(xintercept = snailkites.PP$observation.date[92], 
              color = "gray", linetype = "dotted") +
     geom_linerange(aes(ymin = phi_hat-phi_SD,
@@ -3437,6 +3468,13 @@ Figure4c <- ggplot(data = phi_data_plot |>
                    alpha = 0.15, size = 1) +
     geom_point(alpha = 0.65) +
     scale_y_continuous(expand = c(0,0))+
+    scale_shape_manual(values = c(21,24),
+                     labels = c(expression(italic(phi)[eBird]),
+                                expression(italic(phi)[SM])))+
+    scale_fill_manual(values = c("#91bfdb95",
+                                "#fc8d5995"),
+                     labels = c(expression(italic(phi)[eBird]),
+                                expression(italic(phi)[SM])))+
     scale_color_manual(values = c("#91bfdb95",
                                 "#fc8d5995"),
                      labels = c(expression(italic(phi)[eBird]),
@@ -4755,7 +4793,8 @@ Fig5Ext_b <- ggplot(data = phiSD_df_sensitivity,
                       y = phi.hat),
                    alpha = 0.15, size = 1, color = "#91bfdb95") +
     geom_point(aes(y = phi.hat),
-               alpha = 0.65, color = "#91bfdb95") +
+               alpha = 0.65, color = "#91bfdb95", shape = 21,
+               fill = "#91bfdb95") +
     geom_linerange(data = phi.SM.500,
                    aes(y = phi.hatSM,
                        ymin = phi.hatSM-SD.phiSM,
@@ -4768,7 +4807,8 @@ Fig5Ext_b <- ggplot(data = phiSD_df_sensitivity,
                    alpha = 0.15, size = 1, color = "#fc8d5995") +
     geom_point(data = phi.SM.500,
                aes(y = phi.hatSM),
-                alpha = 0.65, color = "#fc8d5995") +
+                alpha = 0.65, color = "#fc8d5995", shape = 24,
+               fill = "#fc8d5995") +
     scale_y_continuous(expand = c(0,0))+
    labs(x = "Observation date",
        y = expression(paste("Persistence (",italic(varphi),")")))  +
@@ -5220,7 +5260,7 @@ Fig5Ext_b2 <- ggplot(data = phiSD_df_sensitivity.S2,
                        ymax = phi.3rd),
                    alpha = 0.15, size = 1, color = "#91bfdb95") +
     geom_point(aes(y = phi.hat),
-               alpha = 0.65, color = "#91bfdb95") +
+               alpha = 0.65, color = "#91bfdb95", fill =  "#91bfdb95",shape = 21) +
     geom_linerange(data = phi.SM.500,
                    aes(ymin = phi.hatSM-SD.phiSM,
                        ymax = phi.hatSM+SD.phiSM),
@@ -5231,7 +5271,7 @@ Fig5Ext_b2 <- ggplot(data = phiSD_df_sensitivity.S2,
                    alpha = 0.15, size = 1, color = "#fc8d5995") +
     geom_point(data = phi.SM.500,
                aes(y = phi.hatSM),
-                alpha = 0.65, color = "#fc8d5995") +
+                alpha = 0.65, color = "#fc8d5995", fill = "#fc8d5995", shape = 24) +
     scale_y_continuous(expand = c(0,0))+
    labs(x = "Observation date",
        y = expression(paste("Persistence (",italic(varphi),")")))  +
@@ -5366,7 +5406,8 @@ time_series_plot <- function(percentage) {
     geom_linerange(aes(ymin = phi.hat-SD.phi,
                        ymax = phi.hat+SD.phi, 
              y = phi.hat),
-                   alpha = 0.15, color = "#91bfdb95") +
+                   alpha = 0.15, color = "#91bfdb95",
+             fill = "#91bfdb95", shape = 21) +
     geom_linerange(aes(ymin = phi.1st,
                        ymax = phi.3rd, 
              y = phi.hat),
@@ -5385,12 +5426,13 @@ time_series_plot <- function(percentage) {
                    alpha = 0.15, size = 1, color = "#fc8d5995") +
     geom_point(data = phi.SM.500,
                aes(y = phi.hatSM),
-                alpha = 0.65, color = "#fc8d5995") +
+                alpha = 0.65, color = "#fc8d5995",
+               fill = "#fc8d5995", shape = 24) +
     scale_x_date(limits = c(datesPP$observation.date[99],
                             max(datesPP$observation.date)),
                  breaks = seq(datesPP$observation.date[99],
                               max(datesPP$observation.date),
-                              by = "12 months"), 
+                              by = "24 months"), 
                  date_labels="%b\n%Y")+
     labs(x = "Observation date", 
          y = expression(paste("Persistence (", varphi,")"))) +
@@ -5409,14 +5451,14 @@ correlation_plot <- function(percentage) {
     geom_point() +
     geom_smooth(method = "lm", 
                 fullrange = TRUE) +
-    stat_regline_equation(label.x = 0.35, 
+    stat_regline_equation(label.x = 0.25, 
                           label.y = 0.2, 
-                          size = 2.5) +
+                          size = 3) +
     stat_cor(method = "pearson",
              aes(label = paste("rho == ", ..r.., "*','~~p == ", ..p..)),
-             label.x = 0.25, 
+             label.x = 0.15, 
              label.y = 0.1, 
-             size = 2.5, 
+             size = 3, 
              parse = TRUE) +
     labs(x = expression(paste("Persistence (", varphi[SM],")")), 
          y = expression(paste("Persistence (", varphi[eBird],")"))) +
@@ -5477,7 +5519,8 @@ time_series_plot2 <- function(percentage) {
                        ymax = phi.3rd),
                    alpha = 0.15, size = 1, color = "#91bfdb95") +
     geom_point(aes(y = phi.hat),
-               alpha = 0.65, color = "#91bfdb95") +
+               alpha = 0.65, color = "#91bfdb95",
+               fill = "#91bfdb95", shape = 21) +
     geom_linerange(data = phi.SM.500,
                    aes(ymin = phi.hatSM-SD.phiSM,
                        ymax = phi.hatSM+SD.phiSM),
@@ -5488,12 +5531,13 @@ time_series_plot2 <- function(percentage) {
                    alpha = 0.15, size = 1, color = "#fc8d5995") +
     geom_point(data = phi.SM.500,
                aes(y = phi.hatSM),
-                alpha = 0.65, color = "#fc8d5995") +
+                alpha = 0.65, color = "#fc8d5995", 
+               fill = "#fc8d5995", shape = 24) +
     scale_x_date(limits = c(datesPP$observation.date[99],
                             max(datesPP$observation.date)),
                  breaks = seq(datesPP$observation.date[99],
                               max(datesPP$observation.date),
-                              by = "12 months"), 
+                              by = "24 months"), 
                  date_labels="%b\n%Y")+
     labs(x = "Observation date", 
          y = expression(paste("Persistence (", varphi,")"))) +
@@ -5512,14 +5556,14 @@ correlation_plot2 <- function(percentage) {
     geom_point() +
     geom_smooth(method = "lm", 
                 fullrange = TRUE) +
-    stat_regline_equation(label.x = 0.35, 
+    stat_regline_equation(label.x = 0.25, 
                           label.y = 0.2, 
-                          size = 2.5) +
+                          size = 3) +
     stat_cor(method = "pearson",
              aes(label = paste("rho == ", ..r.., "*','~~p == ", ..p..)),
-             label.x = 0.25, 
+             label.x = 0.15, 
              label.y = 0.1, 
-             size = 2.5, 
+             size = 3, 
              parse = TRUE) +
     labs(x = expression(paste("Persistence (", varphi[SM],")")), 
          y = expression(paste("Persistence (", varphi[eBird],")"))) +
@@ -5558,10 +5602,10 @@ Fig5All <- (Figure5 | Figure5b)
 
 #lets saved it with good proportions
 ggsave("results/Figure5_sensitivity_datareductionx2.pdf", 
-       plot = Fig5All, dpi = 300, width = 12, height = 15, units = "in")
+       plot = Fig5All, dpi = 300, width = 12, height = 13, units = "in")
 
 ggsave("results/Figure5_sensitivity_datareductionx2.png", 
-       plot = Fig5All, dpi = 300, width = 12, height = 15, units = "in")
+       plot = Fig5All, dpi = 300, width = 12, height = 13, units = "in")
 
 ```
 
